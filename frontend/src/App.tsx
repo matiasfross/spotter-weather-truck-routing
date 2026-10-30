@@ -10,7 +10,7 @@ import { RiskRulesModal } from './components/RiskRulesModal';
 import { calculateRoutes, fetchPresets } from './services/api';
 import type { CalculateParams } from './services/api';
 import type { RouteCalculateResponse, PresetRoute } from './types';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Compass } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [routeData, setRouteData] = useState<RouteCalculateResponse | null>(null);
@@ -42,14 +42,6 @@ export const App: React.FC = () => {
     async function init() {
       const p = await fetchPresets();
       setPresets(p);
-
-      handleCalculate({
-        origin: 'Chicago, IL',
-        destination: 'Denver, CO',
-        departure_time: new Date().toISOString(),
-        load_weight_lbs: 42000,
-        sampling_miles: 25,
-      });
     }
     init();
   }, []);
@@ -85,6 +77,36 @@ export const App: React.FC = () => {
             />
           </div>
         </div>
+
+        {!routeData && !isLoading && (
+          <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center space-y-4 shadow-xl">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-sky-500/20 to-cyan-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+              <Compass className="w-7 h-7" />
+            </div>
+            <div className="max-w-xl mx-auto space-y-2">
+              <h3 className="text-lg font-bold text-white">
+                Sistema Listo para Análisis de Rutas Comerciales
+              </h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Selecciona uno de los escenarios de prueba o ingresa el origen, destino y peso de carga arriba. Luego presiona <strong className="text-sky-400">"Buscar y Calcular 3 Rutas Seguras"</strong> para iniciar la evaluación meteorológica y de riesgos.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto pt-2 text-left">
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
+                <span className="font-bold text-slate-200 block mb-1">🚚 Comercial HGV</span>
+                <span className="text-slate-400">3 rutas garantizadas optimizadas para camiones de carga pesada.</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
+                <span className="font-bold text-slate-200 block mb-1">🌦️ Clima Predictivo 48h</span>
+                <span className="text-slate-400">Muestreo dinámico cada 10/25/50 millas según la ETA proyectada.</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
+                <span className="font-bold text-slate-200 block mb-1">⚠️ Reglas de Seguridad</span>
+                <span className="text-slate-400">Matriz de mitigación de viento, lluvia torrencial y nieve según el peso.</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {routeData && (
           <div className="space-y-6">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   MapPin,
   Scale,
@@ -7,7 +7,9 @@ import {
   Loader2,
   Sparkles,
   AlertCircle,
-  Clock
+  Clock,
+  Search,
+  CheckCircle2,
 } from 'lucide-react';
 import type { PresetRoute, PlaceSuggestion } from '../types';
 import { searchPlaces } from '../services/api';
@@ -46,24 +48,34 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
 
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
   const [destSuggestions, setDestSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [presetNotice, setPresetNotice] = useState<string | null>(null);
+
+  const originTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const destTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const weightCategory = getTruckWeightCategory(loadWeight);
 
-  const handleOriginChange = async (val: string) => {
+  const handleOriginChange = (val: string) => {
     setOrigin(val);
-    if (val.length >= 2) {
-      const res = await searchPlaces(val);
-      setOriginSuggestions(res);
+    if (originTimeoutRef.current) clearTimeout(originTimeoutRef.current);
+    if (val.trim().length >= 2) {
+      originTimeoutRef.current = setTimeout(async () => {
+        const res = await searchPlaces(val);
+        setOriginSuggestions(res);
+      }, 300);
     } else {
       setOriginSuggestions([]);
     }
   };
 
-  const handleDestChange = async (val: string) => {
+  const handleDestChange = (val: string) => {
     setDestination(val);
-    if (val.length >= 2) {
-      const res = await searchPlaces(val);
-      setDestSuggestions(res);
+    if (destTimeoutRef.current) clearTimeout(destTimeoutRef.current);
+    if (val.trim().length >= 2) {
+      destTimeoutRef.current = setTimeout(async () => {
+        const res = await searchPlaces(val);
+        setDestSuggestions(res);
+      }, 300);
     } else {
       setDestSuggestions([]);
     }
@@ -74,13 +86,10 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
     setDestination(p.destination);
     setLoadWeight(p.default_weight);
     setSamplingMiles(p.sampling_miles);
-    onCalculate({
-      origin: p.origin,
-      destination: p.destination,
-      departure_time: new Date(departureTime).toISOString(),
-      load_weight_lbs: p.default_weight,
-      sampling_miles: p.sampling_miles,
-    });
+    setPresetNotice(`Escenario "${p.title}" cargado en el formulario. Presiona "Buscar y Calcular" para ver las rutas.`);
+    setTimeout(() => {
+      setPresetNotice((current) => (current?.includes(p.title) ? null : current));
+    }, 4500);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -127,6 +136,13 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
               </button>
             ))}
           </div>
+
+          {presetNotice && (
+            <div className="mt-2.5 px-3 py-2 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-200 text-xs flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+              <span>{presetNotice}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -297,17 +313,17 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-600 via-sky-500 to-cyan-500 hover:from-sky-500 hover:to-cyan-400 active:scale-[0.99] transition shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+          className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-600 via-sky-500 to-cyan-500 hover:from-sky-500 hover:to-cyan-400 active:scale-[0.99] transition shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2.5 disabled:opacity-50 cursor-pointer"
         >
           {isLoading ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Analyzing Weather Corridors & Safety Metrics...
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Analizando Corredores y Evaluando Seguridad...</span>
             </>
           ) : (
             <>
-              <Navigation className="w-4 h-4" />
-              Calculate 3 Safe Routes & Corridor Weather Heatmap
+              <Search className="w-5 h-5" />
+              <span>Buscar y Calcular 3 Rutas Seguras</span>
             </>
           )}
         </button>

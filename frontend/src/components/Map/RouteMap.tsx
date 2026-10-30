@@ -205,47 +205,72 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       allLatLngs.push([destination.lat, destination.lon]);
     }
 
-    routes.forEach((route) => {
-      const isSelected = route.id === selectedRouteId;
+    // Separate unselected and selected routes so selected route renders cleanly on top
+    const unselectedRoutes = routes.filter((r) => r.id !== selectedRouteId);
+    const selectedRoute = routes.find((r) => r.id === selectedRouteId);
+
+    // 1. Draw unselected routes with high-contrast dual casing (dark border + bright silver core)
+    unselectedRoutes.forEach((route) => {
       const latLngs: [number, number][] = route.polyline.map((coord) => [coord[1], coord[0]]);
 
-      if (isSelected) {
-        allLatLngs.push(...latLngs);
-      }
+      // Dark underlay border to contrast against any road, ocean, or terrain
+      L.polyline(latLngs, {
+        color: '#020617',
+        weight: 6,
+        opacity: 0.85,
+        lineJoin: 'round',
+      }).addTo(polyGroup);
 
-      if (isSelected) {
-        L.polyline(latLngs, {
-          color: '#38bdf8',
-          weight: 7,
-          opacity: 0.9,
-          lineJoin: 'round',
-        }).addTo(polyGroup);
+      // High-contrast luminous slate-200 foreground line
+      const altLine = L.polyline(latLngs, {
+        color: '#cbd5e1',
+        weight: 4,
+        opacity: 0.95,
+        lineJoin: 'round',
+      }).addTo(polyGroup);
 
-        L.polyline(latLngs, {
-          color: '#0284c7',
-          weight: 4,
-          opacity: 1,
-          lineJoin: 'round',
-        }).addTo(polyGroup);
-      } else {
-        const altLine = L.polyline(latLngs, {
-          color: '#64748b',
-          weight: 3.5,
-          opacity: 0.6,
-          dashArray: '6, 6',
-          lineJoin: 'round',
-        }).addTo(polyGroup);
+      altLine.on('mouseover', () => {
+        altLine.setStyle({ color: '#ffffff', weight: 5.5 });
+      });
 
-        altLine.on('click', () => {
-          onSelectRoute(route.id);
-        });
+      altLine.on('mouseout', () => {
+        altLine.setStyle({ color: '#cbd5e1', weight: 4 });
+      });
 
-        altLine.bindTooltip(`${route.name} (${route.duration_formatted})`, {
+      altLine.on('click', () => {
+        onSelectRoute(route.id);
+      });
+
+      altLine.bindTooltip(
+        `<strong>${route.name}</strong> • ${route.duration_formatted} • ${route.distance_miles.toFixed(0)} mi<br/><span style="font-size: 10px; color: #38bdf8;">Click to switch to this route</span>`,
+        {
           sticky: true,
           className: 'custom-tooltip',
-        });
-      }
+        }
+      );
     });
+
+    // 2. Draw selected route on top with vibrant cyan double-layer
+    if (selectedRoute) {
+      const latLngs: [number, number][] = selectedRoute.polyline.map((coord) => [coord[1], coord[0]]);
+      allLatLngs.push(...latLngs);
+
+      // Outer glow
+      L.polyline(latLngs, {
+        color: '#38bdf8',
+        weight: 8,
+        opacity: 0.9,
+        lineJoin: 'round',
+      }).addTo(polyGroup);
+
+      // Core line
+      L.polyline(latLngs, {
+        color: '#0284c7',
+        weight: 4.5,
+        opacity: 1,
+        lineJoin: 'round',
+      }).addTo(polyGroup);
+    }
 
     if (allLatLngs.length > 0) {
       const bounds = L.latLngBounds(allLatLngs);
