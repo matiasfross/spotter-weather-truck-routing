@@ -21,6 +21,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=/api
+        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
     container_name: spotter-truck-frontend
     ports:
       - "3000:80"

@@ -19,7 +19,10 @@ interface RouteMapProps {
   destination?: { name: string; lat: number; lon: number };
 }
 
-type BasemapStyle = 'carto-dark' | 'mapbox-dark' | 'mapbox-satellite';
+type BasemapStyle = 'esri-dark' | 'mapbox-dark' | 'mapbox-satellite';
+
+const ESRI_DARK_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+const ESRI_ATTRIBUTION = '&copy; <a href="https://www.esri.com/">Esri</a> &copy; OpenStreetMap contributors';
 
 export const RouteMap: React.FC<RouteMapProps> = ({
   routes,
@@ -48,7 +51,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>(
-    mapboxToken ? 'mapbox-dark' : 'carto-dark'
+    mapboxToken ? 'mapbox-dark' : 'esri-dark'
   );
 
   // Initialize Map
@@ -62,18 +65,18 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       zoom: 4,
     });
 
-    // Default tile layer
+    // Default tile layer: Mapbox HD if token present, otherwise clean Esri Dark Gray (no watermarks)
     const initialTile = L.tileLayer(
       mapboxToken
         ? `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`
-        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        : ESRI_DARK_URL,
       {
         attribution: mapboxToken
           ? '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; OpenStreetMap'
-          : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+          : ESRI_ATTRIBUTION,
         subdomains: 'abcd',
         maxZoom: 19,
-        tileSize: 512,
+        tileSize: mapboxToken ? 512 : 256,
         zoomOffset: mapboxToken ? -1 : 0,
       }
     ).addTo(map);
@@ -104,8 +107,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       tileLayerRef.current = null;
     }
 
-    let url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    let attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
+    let url = ESRI_DARK_URL;
+    let attribution = ESRI_ATTRIBUTION;
     let tileSize = 256;
     let zoomOffset = 0;
 
@@ -119,6 +122,11 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       attribution = '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; Maxar';
       tileSize = 512;
       zoomOffset = -1;
+    } else if (basemapStyle === 'esri-dark') {
+      url = ESRI_DARK_URL;
+      attribution = ESRI_ATTRIBUTION;
+      tileSize = 256;
+      zoomOffset = 0;
     }
 
     const newTile = L.tileLayer(url, {
@@ -462,12 +470,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
               Satellite
             </button>
             <button
-              onClick={() => setBasemapStyle('carto-dark')}
+              onClick={() => setBasemapStyle('esri-dark')}
               className={`px-2 py-0.5 rounded-lg transition ${
-                basemapStyle === 'carto-dark' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
+                basemapStyle === 'esri-dark' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
-              Carto
+              Esri Dark
             </button>
           </div>
         )}
