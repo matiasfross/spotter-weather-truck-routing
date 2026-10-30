@@ -72,3 +72,16 @@ class TestAPIEndpoints:
         assert "risk" in cp
         assert "wind_speed_mph" in cp["weather"]
         assert "overall_risk" in cp["risk"]
+
+    def test_radar_tile_proxy_safe_fallback_without_key(self):
+        """Zero-Secrets proxy returns transparent PNG if no server key is configured."""
+        response = self.client.get('/api/routes/radar-tile/precipitation_new/4/3/6.png')
+        assert response.status_code == 200
+        assert response['Content-Type'] == 'image/png'
+        assert len(response.content) > 0
+
+    def test_radar_tile_proxy_invalid_layer_security(self):
+        """Proxy rejects unauthorized layer names safely."""
+        response = self.client.get('/api/routes/radar-tile/malicious_layer/4/3/6.png')
+        assert response.status_code == 200
+        assert response['Content-Type'] == 'image/png'

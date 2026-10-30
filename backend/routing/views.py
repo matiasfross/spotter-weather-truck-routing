@@ -3,7 +3,11 @@ API Views for Weather-Aware Truck Routing.
 """
 
 import re
+import requests
 from datetime import datetime, timezone
+from django.http import HttpResponse
+from django.conf import settings
+from django.core.cache import cache
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -186,3 +190,59 @@ class PresetRoutesAPIView(APIView):
 
     def get(self, request):
         return Response({"presets": PRESET_ROUTES}, status=status.HTTP_200_OK)
+
+
+# 1x1 Transparent PNG byte string fallback
+TRANSPARENT_1X1_PNG = (
+    b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+    b'\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00'
+    b'\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+)
+
+
+class RadarTileProxyAPIView(APIView):
+    """
+    GET /api/routes/radar-tile/<str:layer>/<int:z>/<int:x>/<int:y>.png
+    Zero-Secrets Frontend Proxy:
+    Securely serves OpenWeatherMap radar tiles using server-side OPENWEATHER_API_KEY.
+    Caches image tiles for 10 minutes to minimize external calls and bandwidth.
+    """
+
+    def get(self, request, layer: str, z: int, x: int, y: int):
+        # Validate layer name to prevent path traversal or SSRF
+        allowed_layers = {"precipitation_new", "clouds_new", "wind_new", "temp_new"}
+        if layer not in allowed_layers:
+            return HttpResponse(TRANSPARENT_1X1_PNG, content_type="image/png")
+
+        # Validate tile zoom bounds
+        if not (0 <= z <= 18) or x < 0 or y < 0:
+            return HttpResponse(TRANSPARENT_1X1_PNG, content_type="image/png")
+
+        api_key = getattr(settings, "OPENWEATHER_API_KEY", "") or ""
+        if not api_key:
+            # If no API key configured on server, return transparent tile safely
+            return HttpResponse(TRANSPARENT_1X1_PNG, content_type="image/png")
+
+        cache_key = f"radar_tile_{layer}_{z}_{x}_{y}"
+        cached_tile = cache.get(cache_key)
+        if cached_tile:
+            resp = HttpResponse(cached_tile, content_type="image/png")
+            resp["Cache-Control"] = "public, max-age=600"
+            resp["X-Tile-Cache"] = "HIT"
+            return resp
+
+        # Fetch from OpenWeatherMap securely server-side
+        url = f"https://tile.openweathermap.org/map/{layer}/{z}/{x}/{y}.png"
+        try:
+            r = requests.get(url, params={"appid": api_key}, timeout=5)
+            if r.status_code == 200 and r.content:
+                cache.set(cache_key, r.content, timeout=600)
+                resp = HttpResponse(r.content, content_type="image/png")
+                resp["Cache-Control"] = "public, max-age=600"
+                resp["X-Tile-Cache"] = "MISS"
+                return resp
+        except Exception:
+            pass
+
+        return HttpResponse(TRANSPARENT_1X1_PNG, content_type="image/png")
+

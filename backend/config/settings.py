@@ -13,9 +13,10 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = ['*']
 
-# Optional External API Keys
+# Optional External API Keys (Server-side only)
 ORS_API_KEY = os.environ.get('ORS_API_KEY', '').strip()
 MAPBOX_ACCESS_TOKEN = os.environ.get('MAPBOX_ACCESS_TOKEN', '').strip()
+OPENWEATHER_API_KEY = os.environ.get('OPENWEATHER_API_KEY', '').strip()
 
 INSTALLED_APPS = [
     'django.contrib.admin',

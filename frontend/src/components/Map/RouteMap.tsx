@@ -45,7 +45,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const [showLiveRadar, setShowLiveRadar] = useState(false);
 
   const mapboxToken = (import.meta.env.VITE_MAPBOX_TOKEN || '').trim();
-  const openweatherKey = (import.meta.env.VITE_OPENWEATHER_API_KEY || '').trim();
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
   const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>(
     mapboxToken ? 'mapbox-dark' : 'carto-dark'
@@ -134,7 +134,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     tileLayerRef.current = newTile;
   }, [basemapStyle, mapboxToken]);
 
-  // Toggle Live Weather Radar layer if OpenWeather API key is provided
+  // Toggle Live Weather Radar layer securely via Backend Proxy
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -144,18 +144,18 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       weatherRadarLayerRef.current = null;
     }
 
-    if (showLiveRadar && openweatherKey) {
+    if (showLiveRadar) {
       const radar = L.tileLayer(
-        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${openweatherKey}`,
+        `${apiBaseUrl}/routes/radar-tile/precipitation_new/{z}/{x}/{y}.png`,
         {
-          attribution: '&copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>',
-          opacity: 0.75,
+          attribution: '&copy; Live Radar (Backend Proxy)',
+          opacity: 0.7,
           maxZoom: 18,
         }
       ).addTo(map);
       weatherRadarLayerRef.current = radar;
     }
-  }, [showLiveRadar, openweatherKey]);
+  }, [showLiveRadar, apiBaseUrl]);
 
   // Update Route Polylines and Markers
   useEffect(() => {
@@ -427,21 +427,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           <span className="hidden sm:inline">Checkpoints</span>
         </button>
 
-        {/* Optional Live Radar Doppler Toggle if OpenWeather key is configured */}
-        {openweatherKey && (
-          <button
-            onClick={() => setShowLiveRadar(!showLiveRadar)}
-            className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium ${
-              showLiveRadar
-                ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                : 'bg-slate-900/90 text-slate-400 border-slate-700/80'
-            }`}
-            title="Toggle Live OpenWeather Doppler Radar"
-          >
-            <CloudRain className="w-4 h-4 text-blue-400" />
-            <span className="hidden sm:inline">Live Radar</span>
-          </button>
-        )}
+        {/* Live Radar Doppler Toggle (Zero-Secrets Backend Proxy) */}
+        <button
+          onClick={() => setShowLiveRadar(!showLiveRadar)}
+          className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium ${
+            showLiveRadar
+              ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+              : 'bg-slate-900/90 text-slate-400 border-slate-700/80'
+          }`}
+          title="Toggle Live Doppler Radar (Precipitation)"
+        >
+          <CloudRain className="w-4 h-4 text-blue-400" />
+          <span className="hidden sm:inline">Live Radar</span>
+        </button>
 
         {/* Mapbox Basemap Switcher if Mapbox Token is configured */}
         {mapboxToken && (
