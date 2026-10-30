@@ -56,8 +56,8 @@ export const MapLegend: React.FC = () => {
                 <span className="text-slate-200">Selected / Active Route</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-4 h-0.5 rounded bg-slate-500 dashed shrink-0"></span>
-                <span className="text-slate-400">Alternative Options</span>
+                <span className="w-4 h-1 rounded bg-slate-300 border border-slate-900 shrink-0"></span>
+                <span className="text-slate-300">Alternative Options (High Contrast)</span>
               </div>
             </div>
           </div>

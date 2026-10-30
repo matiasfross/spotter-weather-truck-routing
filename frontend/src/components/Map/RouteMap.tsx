@@ -433,14 +433,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   };
 
   return (
-    <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-950">
-      <div ref={mapContainerRef} className="w-full h-full" />
+    <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-950 isolate">
+      <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* Floating Map Controls at Top Left */}
-      <div className="absolute top-3 left-3 z-30 flex flex-col gap-2 pointer-events-auto">
+      {/* Floating Map Controls at Top Left - Layer 1000 to stay permanently above all Leaflet panes */}
+      <div
+        className="absolute top-3 left-3 z-[1000] flex flex-col gap-2 pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={handleFitBounds}
-          className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-200 shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium"
+          className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-200 shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium cursor-pointer"
           title="Zoom to fit active route"
         >
           <Maximize2 className="w-4 h-4 text-sky-400" />
@@ -449,7 +454,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
         <button
           onClick={() => setShowCheckpoints(!showCheckpoints)}
-          className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium ${
+          className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
             showCheckpoints
               ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
               : 'bg-slate-900/90 text-slate-400 border-slate-700/80'
@@ -463,7 +468,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         {/* Live Radar Doppler Toggle (Zero-Secrets Backend Proxy) */}
         <button
           onClick={() => setShowLiveRadar(!showLiveRadar)}
-          className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium ${
+          className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
             showLiveRadar
               ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
               : 'bg-slate-900/90 text-slate-400 border-slate-700/80'
@@ -480,7 +485,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             <Map className="w-3.5 h-3.5 text-sky-400 ml-1" />
             <button
               onClick={() => setBasemapStyle('mapbox-dark')}
-              className={`px-2 py-0.5 rounded-lg transition ${
+              className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
                 basemapStyle === 'mapbox-dark' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -488,7 +493,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             </button>
             <button
               onClick={() => setBasemapStyle('mapbox-satellite')}
-              className={`px-2 py-0.5 rounded-lg transition ${
+              className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
                 basemapStyle === 'mapbox-satellite' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -496,7 +501,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             </button>
             <button
               onClick={() => setBasemapStyle('esri-dark')}
-              className={`px-2 py-0.5 rounded-lg transition ${
+              className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
                 basemapStyle === 'esri-dark' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -506,8 +511,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         )}
       </div>
 
-      {/* Floating Map Legend at Bottom Left */}
-      <div className="absolute bottom-4 left-3 z-30">
+      {/* Floating Map Legend at Bottom Left - Layer 1000 */}
+      <div
+        className="absolute bottom-4 left-3 z-[1000] pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
         <MapLegend />
       </div>
     </div>
