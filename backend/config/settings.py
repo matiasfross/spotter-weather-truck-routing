@@ -1,13 +1,21 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
+
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-spotter-weather-truck-routing-secret-key-prod-dev')
 
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = ['*']
+
+# Optional External API Keys
+ORS_API_KEY = os.environ.get('ORS_API_KEY', '').strip()
+MAPBOX_ACCESS_TOKEN = os.environ.get('MAPBOX_ACCESS_TOKEN', '').strip()
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -103,6 +111,6 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'truck-routing-cache',
-        'TIMEOUT': 600,  # 10 minutes default
+        'TIMEOUT': 600,
     }
 }

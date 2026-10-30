@@ -60,6 +60,11 @@ export const RouteCard: React.FC<RouteCardProps> = ({
             <h3 className="font-bold text-white text-base">{route.name}</h3>
           </div>
           <p className="text-xs text-slate-400 mt-0.5 truncate">{route.title}</p>
+          {route.routing_engine && (
+            <span className="text-[10px] text-slate-500 font-mono block truncate mt-0.5">
+              Engine: {route.routing_engine}
+            </span>
+          )}
         </div>
       </div>
 

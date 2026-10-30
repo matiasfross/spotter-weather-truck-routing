@@ -5,7 +5,7 @@ import type { RouteOption, CorridorPoint } from '../../types';
 import type { HeatmapMetric } from '../ForecastSlider';
 import { MapLegend } from './MapLegend';
 import { getRiskColor } from '../../utils/formatting';
-import { Maximize2, Eye, EyeOff } from 'lucide-react';
+import { Maximize2, Eye, EyeOff, Map, CloudRain } from 'lucide-react';
 
 interface RouteMapProps {
   routes: RouteOption[];
@@ -18,6 +18,8 @@ interface RouteMapProps {
   origin?: { name: string; lat: number; lon: number };
   destination?: { name: string; lat: number; lon: number };
 }
+
+type BasemapStyle = 'carto-dark' | 'mapbox-dark' | 'mapbox-satellite';
 
 export const RouteMap: React.FC<RouteMapProps> = ({
   routes,
@@ -32,12 +34,22 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const weatherRadarLayerRef = useRef<L.TileLayer | null>(null);
   const polylinesLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const checkpointsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const heatLayerRef = useRef<any>(null);
   const markersLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
   const [showCheckpoints, setShowCheckpoints] = useState(true);
+  const [showLiveRadar, setShowLiveRadar] = useState(false);
+
+  const mapboxToken = (import.meta.env.VITE_MAPBOX_TOKEN || '').trim();
+  const openweatherKey = (import.meta.env.VITE_OPENWEATHER_API_KEY || '').trim();
+
+  const [basemapStyle, setBasemapStyle] = useState<BasemapStyle>(
+    mapboxToken ? 'mapbox-dark' : 'carto-dark'
+  );
 
   // Initialize Map
   useEffect(() => {
@@ -50,11 +62,23 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       zoom: 4,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+    // Default tile layer
+    const initialTile = L.tileLayer(
+      mapboxToken
+        ? `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      {
+        attribution: mapboxToken
+          ? '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; OpenStreetMap'
+          : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
+        tileSize: 512,
+        zoomOffset: mapboxToken ? -1 : 0,
+      }
+    ).addTo(map);
+
+    tileLayerRef.current = initialTile;
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -70,7 +94,70 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     };
   }, []);
 
-  // Update Route Polylines and Origin/Destination Markers
+  // Update Basemap when basemapStyle changes
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+      tileLayerRef.current = null;
+    }
+
+    let url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    let attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
+    let tileSize = 256;
+    let zoomOffset = 0;
+
+    if (basemapStyle === 'mapbox-dark' && mapboxToken) {
+      url = `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`;
+      attribution = '&copy; <a href="https://www.mapbox.com/">Mapbox</a>';
+      tileSize = 512;
+      zoomOffset = -1;
+    } else if (basemapStyle === 'mapbox-satellite' && mapboxToken) {
+      url = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`;
+      attribution = '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; Maxar';
+      tileSize = 512;
+      zoomOffset = -1;
+    }
+
+    const newTile = L.tileLayer(url, {
+      attribution,
+      subdomains: 'abcd',
+      maxZoom: 19,
+      tileSize,
+      zoomOffset,
+    }).addTo(map);
+
+    // Bring under vector layers
+    newTile.bringToBack();
+    tileLayerRef.current = newTile;
+  }, [basemapStyle, mapboxToken]);
+
+  // Toggle Live Weather Radar layer if OpenWeather API key is provided
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (weatherRadarLayerRef.current) {
+      map.removeLayer(weatherRadarLayerRef.current);
+      weatherRadarLayerRef.current = null;
+    }
+
+    if (showLiveRadar && openweatherKey) {
+      const radar = L.tileLayer(
+        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${openweatherKey}`,
+        {
+          attribution: '&copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>',
+          opacity: 0.75,
+          maxZoom: 18,
+        }
+      ).addTo(map);
+      weatherRadarLayerRef.current = radar;
+    }
+  }, [showLiveRadar, openweatherKey]);
+
+  // Update Route Polylines and Markers
   useEffect(() => {
     const map = mapInstanceRef.current;
     const polyGroup = polylinesLayerGroupRef.current;
@@ -316,6 +403,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-950">
       <div ref={mapContainerRef} className="w-full h-full" />
 
+      {/* Floating Map Controls at Top Left */}
       <div className="absolute top-3 left-3 z-30 flex flex-col gap-2 pointer-events-auto">
         <button
           onClick={handleFitBounds}
@@ -338,8 +426,56 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           {showCheckpoints ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
           <span className="hidden sm:inline">Checkpoints</span>
         </button>
+
+        {/* Optional Live Radar Doppler Toggle if OpenWeather key is configured */}
+        {openweatherKey && (
+          <button
+            onClick={() => setShowLiveRadar(!showLiveRadar)}
+            className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium ${
+              showLiveRadar
+                ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                : 'bg-slate-900/90 text-slate-400 border-slate-700/80'
+            }`}
+            title="Toggle Live OpenWeather Doppler Radar"
+          >
+            <CloudRain className="w-4 h-4 text-blue-400" />
+            <span className="hidden sm:inline">Live Radar</span>
+          </button>
+        )}
+
+        {/* Mapbox Basemap Switcher if Mapbox Token is configured */}
+        {mapboxToken && (
+          <div className="flex items-center bg-slate-900/90 border border-slate-700/80 rounded-xl p-1 shadow-lg backdrop-blur-sm gap-1 text-[11px]">
+            <Map className="w-3.5 h-3.5 text-sky-400 ml-1" />
+            <button
+              onClick={() => setBasemapStyle('mapbox-dark')}
+              className={`px-2 py-0.5 rounded-lg transition ${
+                basemapStyle === 'mapbox-dark' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              HD Dark
+            </button>
+            <button
+              onClick={() => setBasemapStyle('mapbox-satellite')}
+              className={`px-2 py-0.5 rounded-lg transition ${
+                basemapStyle === 'mapbox-satellite' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Satellite
+            </button>
+            <button
+              onClick={() => setBasemapStyle('carto-dark')}
+              className={`px-2 py-0.5 rounded-lg transition ${
+                basemapStyle === 'carto-dark' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Carto
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Floating Map Legend at Bottom Left */}
       <div className="absolute bottom-4 left-3 z-30">
         <MapLegend />
       </div>

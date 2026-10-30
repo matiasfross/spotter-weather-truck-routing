@@ -115,7 +115,8 @@ class CalculateRoutesAPIView(APIView):
             origin=origin_loc,
             dest=dest_loc,
             step_miles=sampling_miles,
-            departure_time=dep_time
+            departure_time=dep_time,
+            load_weight_lbs=load_weight
         )
 
         if not raw_routes:
