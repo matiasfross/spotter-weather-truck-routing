@@ -1,0 +1,317 @@
+import React, { useState } from 'react';
+import {
+  MapPin,
+  Scale,
+  Sliders,
+  Navigation,
+  Loader2,
+  Sparkles,
+  AlertCircle,
+  Clock
+} from 'lucide-react';
+import type { PresetRoute, PlaceSuggestion } from '../types';
+import { searchPlaces } from '../services/api';
+import { getTruckWeightCategory } from '../utils/formatting';
+
+interface RouteInputFormProps {
+  onCalculate: (params: {
+    origin: string;
+    destination: string;
+    departure_time: string;
+    load_weight_lbs: number;
+    sampling_miles: 10 | 25 | 50;
+  }) => void;
+  isLoading: boolean;
+  presets: PresetRoute[];
+}
+
+export const RouteInputForm: React.FC<RouteInputFormProps> = ({
+  onCalculate,
+  isLoading,
+  presets,
+}) => {
+  const [origin, setOrigin] = useState('Chicago, IL');
+  const [destination, setDestination] = useState('Denver, CO');
+  
+  const getDefaultDateTime = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() + 10);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const [departureTime, setDepartureTime] = useState(getDefaultDateTime());
+  const [loadWeight, setLoadWeight] = useState(42000);
+  const [samplingMiles, setSamplingMiles] = useState<10 | 25 | 50>(25);
+
+  const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [destSuggestions, setDestSuggestions] = useState<PlaceSuggestion[]>([]);
+
+  const weightCategory = getTruckWeightCategory(loadWeight);
+
+  const handleOriginChange = async (val: string) => {
+    setOrigin(val);
+    if (val.length >= 2) {
+      const res = await searchPlaces(val);
+      setOriginSuggestions(res);
+    } else {
+      setOriginSuggestions([]);
+    }
+  };
+
+  const handleDestChange = async (val: string) => {
+    setDestination(val);
+    if (val.length >= 2) {
+      const res = await searchPlaces(val);
+      setDestSuggestions(res);
+    } else {
+      setDestSuggestions([]);
+    }
+  };
+
+  const handleApplyPreset = (p: PresetRoute) => {
+    setOrigin(p.origin);
+    setDestination(p.destination);
+    setLoadWeight(p.default_weight);
+    setSamplingMiles(p.sampling_miles);
+    onCalculate({
+      origin: p.origin,
+      destination: p.destination,
+      departure_time: new Date(departureTime).toISOString(),
+      load_weight_lbs: p.default_weight,
+      sampling_miles: p.sampling_miles,
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!origin.trim() || !destination.trim()) return;
+
+    let isoDate: string;
+    try {
+      isoDate = new Date(departureTime).toISOString();
+    } catch {
+      isoDate = new Date().toISOString();
+    }
+
+    onCalculate({
+      origin,
+      destination,
+      departure_time: isoDate,
+      load_weight_lbs: Number(loadWeight),
+      sampling_miles: samplingMiles,
+    });
+  };
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+      {/* Quick Test Scenarios */}
+      {presets.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+            Curated Assessment Scenarios
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {presets.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleApplyPreset(p)}
+                className="text-left p-2.5 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800/80 hover:border-sky-500/40 transition group"
+              >
+                <div className="text-xs font-bold text-white group-hover:text-sky-400 truncate">
+                  {p.origin.split(',')[0]} → {p.destination.split(',')[0]}
+                </div>
+                <div className="text-[10px] text-slate-400 truncate mt-0.5">{p.subtitle}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Origin & Destination Inputs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Origin */}
+          <div className="relative">
+            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+              Origin City / Hub
+            </label>
+            <input
+              type="text"
+              value={origin}
+              onChange={(e) => handleOriginChange(e.target.value)}
+              placeholder="e.g. Chicago, IL or lat,lon"
+              required
+              className="w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 transition"
+            />
+            {originSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-800">
+                {originSuggestions.map((s, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setOrigin(s.name);
+                      setOriginSuggestions([]);
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs text-slate-200 hover:bg-slate-800 transition truncate"
+                  >
+                    {s.display_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Destination */}
+          <div className="relative">
+            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Navigation className="w-3.5 h-3.5 text-sky-400" />
+              Destination City / Hub
+            </label>
+            <input
+              type="text"
+              value={destination}
+              onChange={(e) => handleDestChange(e.target.value)}
+              placeholder="e.g. Denver, CO or lat,lon"
+              required
+              className="w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 transition"
+            />
+            {destSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-800">
+                {destSuggestions.map((s, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setDestination(s.name);
+                      setDestSuggestions([]);
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs text-slate-200 hover:bg-slate-800 transition truncate"
+                  >
+                    {s.display_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Departure Time & Sampling Frequency */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Departure Date/Time */}
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-sky-400" />
+              Departure Date & Time
+            </label>
+            <input
+              type="datetime-local"
+              value={departureTime}
+              onChange={(e) => setDepartureTime(e.target.value)}
+              required
+              className="w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3.5 py-2 text-sm text-white transition"
+            />
+          </div>
+
+          {/* Sampling Interval (10 / 25 / 50 miles) */}
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                Weather Sampling Interval
+              </span>
+              <span className="text-[11px] text-slate-400">PDF requirement</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[10, 25, 50].map((step) => (
+                <button
+                  key={step}
+                  type="button"
+                  onClick={() => setSamplingMiles(step as 10 | 25 | 50)}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition ${
+                    samplingMiles === step
+                      ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/20'
+                      : 'bg-slate-950 text-slate-300 border-slate-700/80 hover:bg-slate-800'
+                  }`}
+                >
+                  {step} miles
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Truck Load Weight & Rule Impact Indicator */}
+        <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+              <Scale className="w-3.5 h-3.5 text-indigo-400" />
+              Truck Cargo Load Weight
+            </label>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-0.5 rounded-md border font-medium ${weightCategory.badgeClass}`}>
+                {weightCategory.label}
+              </span>
+              <span className="text-sm font-bold text-white font-mono">
+                {new Intl.NumberFormat().format(loadWeight)} lbs
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <input
+              type="range"
+              min="0"
+              max="80000"
+              step="1000"
+              value={loadWeight}
+              onChange={(e) => setLoadWeight(Number(e.target.value))}
+              className="w-full accent-sky-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
+            />
+            <input
+              type="number"
+              min="0"
+              max="90000"
+              step="500"
+              value={loadWeight}
+              onChange={(e) => setLoadWeight(Number(e.target.value))}
+              className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white text-right font-mono"
+            />
+          </div>
+
+          <div className="flex items-start gap-2 text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold">Truck Load Risk Dynamics: </span>
+              {weightCategory.loadRuleNotice}
+            </div>
+          </div>
+        </div>
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-sky-600 via-sky-500 to-cyan-500 hover:from-sky-500 hover:to-cyan-400 active:scale-[0.99] transition shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Analyzing Weather Corridors & Safety Metrics...
+            </>
+          ) : (
+            <>
+              <Navigation className="w-4 h-4" />
+              Calculate 3 Safe Routes & Corridor Weather Heatmap
+            </>
+          )}
+        </button>
+      </form>
+    </div>
+  );
+};
