@@ -148,6 +148,7 @@ export const App: React.FC = () => {
                 isHeatmapVisible={isHeatmapVisible}
                 origin={routeData.origin}
                 destination={routeData.destination}
+                loadWeightLbs={routeData.load_weight_lbs}
               />
 
               <ForecastSlider

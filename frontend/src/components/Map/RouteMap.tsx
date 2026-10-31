@@ -17,6 +17,7 @@ interface RouteMapProps {
   isHeatmapVisible: boolean;
   origin?: { name: string; lat: number; lon: number };
   destination?: { name: string; lat: number; lon: number };
+  loadWeightLbs?: number;
 }
 
 type BasemapStyle = 'esri-dark' | 'mapbox-dark' | 'mapbox-satellite';
@@ -34,6 +35,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   isHeatmapVisible,
   origin,
   destination,
+  loadWeightLbs = 35000,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -44,6 +46,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const heatLayerRef = useRef<any>(null);
   const markersLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const timelapseLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const corridorMarkersLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
   const [showCheckpoints, setShowCheckpoints] = useState(true);
   const [showLiveRadar, setShowLiveRadar] = useState(false);
@@ -93,6 +96,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     checkpointsLayerGroupRef.current = L.layerGroup().addTo(map);
     markersLayerGroupRef.current = L.layerGroup().addTo(map);
     timelapseLayerGroupRef.current = L.layerGroup().addTo(map);
+    corridorMarkersLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -495,7 +499,170 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     );
   }, [routes, selectedRouteId, forecastHourOffset]);
 
-  // Update Heatmap with High-Contrast Weather Radar Palettes
+  // Classifiers strictly implementing the Risk Rules from fs-assessment-spotter.pdf
+  const classifyConditionPerPdf = (
+    metric: HeatmapMetric,
+    timelinePoint: any,
+    truckWeightLbs: number
+  ) => {
+    const windMph = timelinePoint.wind_mph || 0;
+    const rainInHr = timelinePoint.rain_in_hr || 0;
+    const snowInHr = timelinePoint.snow_in_hr || 0;
+
+    // 1. Wind Rules (Page 1 & 2 of PDF):
+    // < 25 Low, 25-34 Moderate, 35-44 High, 45-54 Severe, >= 55 No Travel
+    // Load rules: >= 55 No Travel; 45-54 + >30,000 lb No Travel; 35-44 + >40,000 lb Severe
+    let windLevel = 'LOW';
+    let windScore = 1;
+    let windColor = '#10b981';
+    let windDesc = `${windMph.toFixed(1)} mph (< 25 mph)`;
+
+    if (windMph >= 55.0) {
+      windLevel = 'NO_TRAVEL';
+      windScore = 5;
+      windColor = '#7f1d1d';
+      windDesc = `${windMph.toFixed(1)} mph (≥ 55 mph)`;
+    } else if (windMph >= 45.0) {
+      if (truckWeightLbs > 30000) {
+        windLevel = 'NO_TRAVEL';
+        windScore = 5;
+        windColor = '#7f1d1d';
+        windDesc = `${windMph.toFixed(1)} mph + >30k lb`;
+      } else {
+        windLevel = 'SEVERE';
+        windScore = 4;
+        windColor = '#ef4444';
+        windDesc = `${windMph.toFixed(1)} mph (45–54 mph)`;
+      }
+    } else if (windMph >= 35.0) {
+      if (truckWeightLbs > 40000) {
+        windLevel = 'SEVERE';
+        windScore = 4;
+        windColor = '#ef4444';
+        windDesc = `${windMph.toFixed(1)} mph + >40k lb`;
+      } else {
+        windLevel = 'HIGH';
+        windScore = 3;
+        windColor = '#f97316';
+        windDesc = `${windMph.toFixed(1)} mph (35–44 mph)`;
+      }
+    } else if (windMph >= 25.0) {
+      windLevel = 'MODERATE';
+      windScore = 2;
+      windColor = '#f59e0b';
+      windDesc = `${windMph.toFixed(1)} mph (25–34 mph)`;
+    }
+
+    // 2. Rain Rules (Page 1 of PDF):
+    // < 0.10 Low, 0.10-0.25 Moderate, 0.25-0.50 High, 0.50-1.00 Severe, > 1.00 No Travel
+    let rainLevel = 'LOW';
+    let rainScore = 1;
+    let rainColor = '#10b981';
+    let rainDesc = `${rainInHr.toFixed(2)} in/hr (< 0.10 in/hr)`;
+
+    if (rainInHr > 1.0) {
+      rainLevel = 'NO_TRAVEL';
+      rainScore = 5;
+      rainColor = '#7f1d1d';
+      rainDesc = `${rainInHr.toFixed(2)} in/hr (> 1.00 in/hr)`;
+    } else if (rainInHr >= 0.5) {
+      rainLevel = 'SEVERE';
+      rainScore = 4;
+      rainColor = '#ef4444';
+      rainDesc = `${rainInHr.toFixed(2)} in/hr (0.50–1.00 in/hr)`;
+    } else if (rainInHr >= 0.25) {
+      rainLevel = 'HIGH';
+      rainScore = 3;
+      rainColor = '#f97316';
+      rainDesc = `${rainInHr.toFixed(2)} in/hr (0.25–0.50 in/hr)`;
+    } else if (rainInHr >= 0.10) {
+      rainLevel = 'MODERATE';
+      rainScore = 2;
+      rainColor = '#f59e0b';
+      rainDesc = `${rainInHr.toFixed(2)} in/hr (0.10–0.25 in/hr)`;
+    }
+
+    // 3. Snow Rules (Page 1 of PDF):
+    // < 0.5 Low, 0.5-1.0 Moderate, 1.0-2.0 High, 2.0-3.0 Severe, > 3.0 No Travel
+    let snowLevel = 'LOW';
+    let snowScore = 1;
+    let snowColor = '#10b981';
+    let snowDesc = `${snowInHr.toFixed(2)} in/hr (< 0.5 in/hr)`;
+
+    if (snowInHr > 3.0) {
+      snowLevel = 'NO_TRAVEL';
+      snowScore = 5;
+      snowColor = '#7f1d1d';
+      snowDesc = `${snowInHr.toFixed(2)} in/hr (> 3.0 in/hr)`;
+    } else if (snowInHr >= 2.0) {
+      snowLevel = 'SEVERE';
+      snowScore = 4;
+      snowColor = '#ef4444';
+      snowDesc = `${snowInHr.toFixed(2)} in/hr (2.0–3.0 in/hr)`;
+    } else if (snowInHr >= 1.0) {
+      snowLevel = 'HIGH';
+      snowScore = 3;
+      snowColor = '#f97316';
+      snowDesc = `${snowInHr.toFixed(2)} in/hr (1.0–2.0 in/hr)`;
+    } else if (snowInHr >= 0.5) {
+      snowLevel = 'MODERATE';
+      snowScore = 2;
+      snowColor = '#f59e0b';
+      snowDesc = `${snowInHr.toFixed(2)} in/hr (0.5–1.0 in/hr)`;
+    }
+
+    // Select active metric classification
+    if (metric === 'wind') {
+      return {
+        level: windLevel,
+        score: windScore,
+        color: windColor,
+        description: windDesc,
+        intensity: windScore <= 1 ? 0.0 : windScore === 2 ? 0.35 : windScore === 3 ? 0.65 : windScore === 4 ? 0.85 : 1.0,
+      };
+    }
+    if (metric === 'rain') {
+      return {
+        level: rainLevel,
+        score: rainScore,
+        color: rainColor,
+        description: rainDesc,
+        intensity: rainScore <= 1 ? 0.0 : rainScore === 2 ? 0.35 : rainScore === 3 ? 0.65 : rainScore === 4 ? 0.85 : 1.0,
+      };
+    }
+    if (metric === 'snow') {
+      return {
+        level: snowLevel,
+        score: snowScore,
+        color: snowColor,
+        description: snowDesc,
+        intensity: snowScore <= 1 ? 0.0 : snowScore === 2 ? 0.35 : snowScore === 3 ? 0.65 : snowScore === 4 ? 0.85 : 1.0,
+      };
+    }
+
+    // Default: Overall Composite Truck Risk = max of wind, rain, snow
+    const maxScore = Math.max(windScore, rainScore, snowScore, timelinePoint.risk_score || 1);
+    const overallColor =
+      maxScore >= 5 ? '#7f1d1d' :
+      maxScore === 4 ? '#ef4444' :
+      maxScore === 3 ? '#f97316' :
+      maxScore === 2 ? '#f59e0b' : '#10b981';
+    const overallLevel =
+      maxScore >= 5 ? 'NO_TRAVEL' :
+      maxScore === 4 ? 'SEVERE' :
+      maxScore === 3 ? 'HIGH' :
+      maxScore === 2 ? 'MODERATE' : 'LOW';
+
+    return {
+      level: overallLevel,
+      score: maxScore,
+      color: overallColor,
+      description: `Composite: ${overallLevel}`,
+      intensity: maxScore <= 1 ? 0.0 : maxScore === 2 ? 0.35 : maxScore === 3 ? 0.65 : maxScore === 4 ? 0.85 : 1.0,
+    };
+  };
+
+  // Update Corridor Nodes & Heatmap strictly following PDF Risk Rules
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -505,93 +672,78 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       heatLayerRef.current = null;
     }
 
+    const corridorGroup = corridorMarkersLayerGroupRef.current;
+    if (corridorGroup) {
+      corridorGroup.clearLayers();
+    }
+
     if (!isHeatmapVisible || !corridorPoints || corridorPoints.length === 0) return;
 
     const heatData: [number, number, number][] = [];
 
     corridorPoints.forEach((pt) => {
-      const timelinePoint = pt.timeline.find((t) => t.hour_offset === forecastHourOffset) || pt.timeline[0];
+      const timelinePoint =
+        pt.timeline.find((t) => t.hour_offset === forecastHourOffset) || pt.timeline[0];
       if (!timelinePoint) return;
 
-      let intensity = 0.2;
-      switch (activeMetric) {
-        case 'wind':
-          intensity = Math.min(1.0, Math.max(0.2, timelinePoint.wind_mph / 45.0));
-          break;
-        case 'rain':
-          intensity = timelinePoint.rain_in_hr > 0
-            ? Math.min(1.0, Math.max(0.25, 0.25 + (timelinePoint.rain_in_hr / 0.5) * 0.75))
-            : 0.0;
-          break;
-        case 'snow':
-          intensity = timelinePoint.snow_in_hr > 0
-            ? Math.min(1.0, Math.max(0.25, 0.25 + (timelinePoint.snow_in_hr / 1.5) * 0.75))
-            : 0.0;
-          break;
-        case 'risk':
-        default:
-          intensity = Math.min(1.0, Math.max(0.2, timelinePoint.risk_score / 4.5));
-          break;
+      const classification = classifyConditionPerPdf(activeMetric, timelinePoint, loadWeightLbs);
+
+      // 1. Render Corridor Node Marker using the EXACT SAME LOGIC as the checkpoints
+      if (corridorGroup) {
+        const isHazard = classification.score > 1;
+        const cellMarker = L.circleMarker([pt.lat, pt.lon], {
+          radius: isHazard ? 6.5 : 4.5,
+          fillColor: classification.color,
+          color: '#ffffff',
+          weight: isHazard ? 2 : 1.2,
+          opacity: 0.9,
+          fillOpacity: isHazard ? 0.95 : 0.75,
+        });
+
+        const tooltipHtml = `
+          <div class="p-1 space-y-1 font-mono text-xs">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-700/60 pb-1">
+              <span class="font-bold text-white">Corridor Station #${pt.id}</span>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase" style="background-color: ${classification.color}25; color: ${classification.color}; border: 1px solid ${classification.color}60">
+                ${classification.level}
+              </span>
+            </div>
+            <div class="text-[11px] text-slate-300">
+              Wind: <strong>${timelinePoint.wind_mph} mph</strong> • Rain: <strong>${timelinePoint.rain_in_hr} in/hr</strong>
+            </div>
+            <div class="text-[10px] text-sky-400 font-semibold">PDF Rule: ${classification.description}</div>
+          </div>
+        `;
+
+        cellMarker.bindTooltip(tooltipHtml, {
+          className: 'custom-tooltip',
+          direction: 'top',
+          offset: [0, -6],
+        });
+
+        cellMarker.addTo(corridorGroup);
       }
 
-      if (intensity > 0.05) {
-        heatData.push([pt.lat, pt.lon, intensity]);
+      // 2. Only add elevated hazards (score > 1) to heatData to prevent safe areas from falsely blending into orange
+      if (classification.score > 1 && classification.intensity > 0) {
+        heatData.push([pt.lat, pt.lon, classification.intensity]);
       }
     });
 
     if (heatData.length > 0 && (L as any).heatLayer) {
       try {
-        // High-contrast gradients tailored to each metric
-        let gradient: { [key: number]: string };
-        switch (activeMetric) {
-          case 'rain':
-            // High-contrast precipitation weather radar palette
-            gradient = {
-              0.15: '#06b6d4', // neon cyan
-              0.35: '#2563eb', // vivid cobalt blue
-              0.60: '#7c3aed', // electric purple
-              0.80: '#db2777', // hot magenta
-              1.00: '#ffffff', // torrential white core
-            };
-            break;
-          case 'snow':
-            // High-contrast snowstorm palette
-            gradient = {
-              0.15: '#38bdf8', // sky ice
-              0.40: '#818cf8', // periwinkle
-              0.70: '#c084fc', // electric violet
-              1.00: '#ffffff', // pure white blizzard
-            };
-            break;
-          case 'wind':
-            // High-contrast wind velocity palette
-            gradient = {
-              0.15: '#10b981', // emerald
-              0.35: '#fbbf24', // amber gold
-              0.60: '#f97316', // neon orange
-              0.85: '#ef4444', // crimson
-              1.00: '#7f1d1d', // dark red
-            };
-            break;
-          case 'risk':
-          default:
-            gradient = {
-              0.15: '#10b981', // low green
-              0.35: '#f59e0b', // moderate amber
-              0.60: '#f97316', // high orange
-              0.85: '#ef4444', // severe red
-              1.00: '#9333ea', // extreme / no-travel purple
-            };
-            break;
-        }
-
         const heatLayer = (L as any).heatLayer(heatData, {
-          radius: 48,
+          radius: 36,
           blur: 16,
           maxZoom: 16,
-          max: 1.0,
-          minOpacity: 0.38,
-          gradient: gradient,
+          max: 2.0, // Prevents adjacent points from multiplying into false higher hazards
+          minOpacity: 0.45,
+          gradient: {
+            0.35: '#f59e0b', // Moderate (Amber)
+            0.65: '#f97316', // High (Orange)
+            0.85: '#ef4444', // Severe (Red)
+            1.00: '#7f1d1d', // No Travel (Dark Red)
+          },
         });
         heatLayer.addTo(map);
         heatLayerRef.current = heatLayer;
@@ -599,7 +751,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         console.warn('Heatmap layer error:', err);
       }
     }
-  }, [corridorPoints, forecastHourOffset, activeMetric, isHeatmapVisible]);
+  }, [corridorPoints, forecastHourOffset, activeMetric, isHeatmapVisible, loadWeightLbs]);
 
   const handleFitBounds = () => {
     const map = mapInstanceRef.current;

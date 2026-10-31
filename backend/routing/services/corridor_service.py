@@ -109,10 +109,19 @@ def build_corridor_48h_forecast(
                 snow_in = sim["snow_in_hr"]
                 temp_f = sim["temperature_f"]
 
-            # Evaluate risk at this point for truck weight
+            # Evaluate risk at this point for truck weight strictly per PDF rules
             risk = evaluate_checkpoint_risk(wind_mph, rain_in, snow_in, load_weight_lbs)
             score = risk["overall_risk_score"]
-            intensity = min(1.0, max(0.15, score / 5.0))
+            if score <= 1:
+                intensity = 0.0
+            elif score == 2:
+                intensity = 0.35
+            elif score == 3:
+                intensity = 0.65
+            elif score == 4:
+                intensity = 0.85
+            else:
+                intensity = 1.0
 
             timeline.append({
                 "hour_offset": hour_offset,
