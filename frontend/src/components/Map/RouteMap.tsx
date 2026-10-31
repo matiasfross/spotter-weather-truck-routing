@@ -46,7 +46,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const heatLayerRef = useRef<any>(null);
   const markersLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const timelapseLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const corridorMarkersLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
   const [showCheckpoints, setShowCheckpoints] = useState(true);
   const [showLiveRadar, setShowLiveRadar] = useState(false);
@@ -96,7 +95,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     checkpointsLayerGroupRef.current = L.layerGroup().addTo(map);
     markersLayerGroupRef.current = L.layerGroup().addTo(map);
     timelapseLayerGroupRef.current = L.layerGroup().addTo(map);
-    corridorMarkersLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -662,7 +660,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     };
   };
 
-  // Update Corridor Nodes & Heatmap strictly following PDF Risk Rules
+  // Update Corridor Heatmap strictly following PDF Risk Rules (rendered strictly along the route)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -672,59 +670,23 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       heatLayerRef.current = null;
     }
 
-    const corridorGroup = corridorMarkersLayerGroupRef.current;
-    if (corridorGroup) {
-      corridorGroup.clearLayers();
-    }
-
     if (!isHeatmapVisible || !corridorPoints || corridorPoints.length === 0) return;
 
     const heatData: [number, number, number][] = [];
 
-    corridorPoints.forEach((pt) => {
+    // Filter points strictly for the active route if a route is selected
+    const activeRouteCorridorPoints = selectedRouteId
+      ? corridorPoints.filter((pt) => !pt.route_id || pt.route_id === selectedRouteId)
+      : corridorPoints;
+
+    activeRouteCorridorPoints.forEach((pt) => {
       const timelinePoint =
         pt.timeline.find((t) => t.hour_offset === forecastHourOffset) || pt.timeline[0];
       if (!timelinePoint) return;
 
       const classification = classifyConditionPerPdf(activeMetric, timelinePoint, loadWeightLbs);
 
-      // 1. Render Corridor Node Marker using the EXACT SAME LOGIC as the checkpoints
-      if (corridorGroup) {
-        const isHazard = classification.score > 1;
-        const cellMarker = L.circleMarker([pt.lat, pt.lon], {
-          radius: isHazard ? 6.5 : 4.5,
-          fillColor: classification.color,
-          color: '#ffffff',
-          weight: isHazard ? 2 : 1.2,
-          opacity: 0.9,
-          fillOpacity: isHazard ? 0.95 : 0.75,
-        });
-
-        const tooltipHtml = `
-          <div class="p-1 space-y-1 font-mono text-xs">
-            <div class="flex items-center justify-between gap-2 border-b border-slate-700/60 pb-1">
-              <span class="font-bold text-white">Corridor Station #${pt.id}</span>
-              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase" style="background-color: ${classification.color}25; color: ${classification.color}; border: 1px solid ${classification.color}60">
-                ${classification.level}
-              </span>
-            </div>
-            <div class="text-[11px] text-slate-300">
-              Wind: <strong>${timelinePoint.wind_mph} mph</strong> • Rain: <strong>${timelinePoint.rain_in_hr} in/hr</strong>
-            </div>
-            <div class="text-[10px] text-sky-400 font-semibold">PDF Rule: ${classification.description}</div>
-          </div>
-        `;
-
-        cellMarker.bindTooltip(tooltipHtml, {
-          className: 'custom-tooltip',
-          direction: 'top',
-          offset: [0, -6],
-        });
-
-        cellMarker.addTo(corridorGroup);
-      }
-
-      // 2. Only add elevated hazards (score > 1) to heatData to prevent safe areas from falsely blending into orange
+      // Only add elevated hazards (score > 1) to heatData to prevent safe areas from falsely blending into orange
       if (classification.score > 1 && classification.intensity > 0) {
         heatData.push([pt.lat, pt.lon, classification.intensity]);
       }
@@ -733,8 +695,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     if (heatData.length > 0 && (L as any).heatLayer) {
       try {
         const heatLayer = (L as any).heatLayer(heatData, {
-          radius: 36,
-          blur: 16,
+          radius: 25,
+          blur: 12,
           maxZoom: 16,
           max: 2.0, // Prevents adjacent points from multiplying into false higher hazards
           minOpacity: 0.45,
@@ -751,7 +713,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         console.warn('Heatmap layer error:', err);
       }
     }
-  }, [corridorPoints, forecastHourOffset, activeMetric, isHeatmapVisible, loadWeightLbs]);
+  }, [corridorPoints, forecastHourOffset, activeMetric, isHeatmapVisible, loadWeightLbs, selectedRouteId]);
 
   const handleFitBounds = () => {
     const map = mapInstanceRef.current;

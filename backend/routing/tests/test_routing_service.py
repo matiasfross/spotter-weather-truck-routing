@@ -116,3 +116,23 @@ class TestRoutingService:
                     if dist < 0.05:
                         retrace_count += 1
             assert retrace_count == 0
+
+    def test_corridor_mesh_strictly_on_routes(self):
+        from routing.services.corridor_service import generate_corridor_mesh
+        mock_routes = [
+            {
+                "id": "route_1",
+                "checkpoints": [
+                    {"lat": 41.8781, "lon": -87.6298},
+                    {"lat": 41.5236, "lon": -90.5776},
+                    {"lat": 41.2565, "lon": -95.9345},
+                ]
+            }
+        ]
+        mesh = generate_corridor_mesh(mock_routes, max_points=10)
+        assert len(mesh) == 3
+        # All points must be directly from route checkpoints (no lateral offsets in fields)
+        expected_coords = {(round(cp["lat"], 5), round(cp["lon"], 5)) for cp in mock_routes[0]["checkpoints"]}
+        for pt in mesh:
+            assert (pt["lat"], pt["lon"]) in expected_coords
+            assert pt["route_id"] == "route_1"

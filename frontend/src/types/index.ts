@@ -97,6 +97,7 @@ export interface CorridorTimelinePoint {
 
 export interface CorridorPoint {
   id: number;
+  route_id?: string;
   lat: number;
   lon: number;
   timeline: CorridorTimelinePoint[];

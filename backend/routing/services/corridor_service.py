@@ -11,57 +11,36 @@ from routing.services.risk_service import evaluate_checkpoint_risk
 from routing.services.weather_service import fetch_batch_weather, _simulate_weather_point
 
 
-def generate_corridor_mesh(routes: List[Dict[str, Any]], max_points: int = 25) -> List[Dict[str, float]]:
+def generate_corridor_mesh(routes: List[Dict[str, Any]], max_points: int = 35) -> List[Dict[str, Any]]:
     """
-    Extract a spatial corridor mesh covering all routes plus lateral buffer offsets.
+    Extract coordinates strictly along the routes themselves (no lateral buffer offsets).
+    Ensures 100% of weather forecast sampling is on the physical highway road.
     """
     sampled_coords = []
     seen = set()
 
-    # Collect coordinates along routes
     for r in routes:
+        route_id = r.get("id")
         cps = r.get("checkpoints", [])
-        step = max(1, len(cps) // 6)
+        if not cps:
+            continue
+        step = max(1, len(cps) // 12)
         for i in range(0, len(cps), step):
             pt = cps[i]
-            coord_key = (round(pt["lat"], 2), round(pt["lon"], 2))
+            coord_key = (round(pt["lat"], 3), round(pt["lon"], 3))
             if coord_key not in seen:
                 seen.add(coord_key)
-                sampled_coords.append({"lat": pt["lat"], "lon": pt["lon"]})
-
-    # Add lateral buffer points (~25 miles offset)
-    buffer_points = []
-    for i in range(1, len(sampled_coords) - 1, 2):
-        prev = sampled_coords[i - 1]
-        curr = sampled_coords[i]
-        nxt = sampled_coords[i + 1]
-
-        dlat = nxt["lat"] - prev["lat"]
-        dlon = nxt["lon"] - prev["lon"]
-        length = math.sqrt(dlat * dlat + dlon * dlon)
-        if length > 0.001:
-            offset = 0.35  # ~24 miles
-            norm_lat = -dlon / length * offset
-            norm_lon = dlat / length * offset
-
-            left_pt = {"lat": round(curr["lat"] + norm_lat, 4), "lon": round(curr["lon"] + norm_lon, 4)}
-            right_pt = {"lat": round(curr["lat"] - norm_lat, 4), "lon": round(curr["lon"] - norm_lon, 4)}
-
-            buffer_points.append(left_pt)
-            buffer_points.append(right_pt)
-
-    all_points = sampled_coords + buffer_points
-    unique_points = []
-    final_seen = set()
-    for pt in all_points:
-        k = (round(pt["lat"], 2), round(pt["lon"], 2))
-        if k not in final_seen:
-            final_seen.add(k)
-            unique_points.append(pt)
-        if len(unique_points) >= max_points:
+                sampled_coords.append({
+                    "lat": round(pt["lat"], 5),
+                    "lon": round(pt["lon"], 5),
+                    "route_id": route_id,
+                })
+            if len(sampled_coords) >= max_points:
+                break
+        if len(sampled_coords) >= max_points:
             break
 
-    return unique_points
+    return sampled_coords
 
 
 def build_corridor_48h_forecast(
@@ -70,10 +49,10 @@ def build_corridor_48h_forecast(
     load_weight_lbs: float
 ) -> List[Dict[str, Any]]:
     """
-    Build 48-hour hourly timeline for each corridor point.
+    Build 48-hour hourly timeline for each corridor point strictly along the highway routes.
     Batches API requests for instant response.
     """
-    grid = generate_corridor_mesh(routes, max_points=25)
+    grid = generate_corridor_mesh(routes, max_points=35)
     if not grid:
         return []
 
@@ -85,6 +64,7 @@ def build_corridor_48h_forecast(
     for idx, pt in enumerate(grid):
         lat = pt["lat"]
         lon = pt["lon"]
+        route_id = pt.get("route_id")
         ts_data = batch_weather[idx] if idx < len(batch_weather) else None
 
         hourly = ts_data.get("hourly", {}) if ts_data else {}
@@ -139,6 +119,7 @@ def build_corridor_48h_forecast(
 
         corridor_data.append({
             "id": idx + 1,
+            "route_id": route_id,
             "lat": lat,
             "lon": lon,
             "timeline": timeline,
