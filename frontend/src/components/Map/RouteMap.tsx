@@ -59,6 +59,15 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     mapboxToken ? 'mapbox-dark' : 'esri-dark'
   );
 
+  const lastFittedRoutesRef = useRef<any>(null);
+  const onSelectRouteRef = useRef(onSelectRoute);
+  const onSelectHourOffsetRef = useRef(onSelectHourOffset);
+
+  useEffect(() => {
+    onSelectRouteRef.current = onSelectRoute;
+    onSelectHourOffsetRef.current = onSelectHourOffset;
+  });
+
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
@@ -238,7 +247,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       });
 
       altLine.on('click', () => {
-        onSelectRoute(route.id);
+        onSelectRouteRef.current?.(route.id);
       });
 
       altLine.bindTooltip(
@@ -272,11 +281,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       }).addTo(polyGroup);
     }
 
-    if (allLatLngs.length > 0) {
+    const isNewRouteData = lastFittedRoutesRef.current !== routes;
+    if (isNewRouteData && allLatLngs.length > 0) {
+      lastFittedRoutesRef.current = routes;
       const bounds = L.latLngBounds(allLatLngs);
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
     }
-  }, [routes, selectedRouteId, origin, destination, onSelectRoute]);
+  }, [routes, selectedRouteId, origin, destination]);
 
   // Update Checkpoints (static colors based on scheduled arrival ETA risk itinerary)
   useEffect(() => {
@@ -310,10 +321,11 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         fillOpacity: 0.95,
       });
 
-      marker.on('click', () => {
-        if (onSelectHourOffset) {
+      marker.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        if (onSelectHourOffsetRef.current) {
           const cpOffset = Math.round((cp.cumulative_duration_seconds / 3600) * 4) / 4;
-          onSelectHourOffset(cpOffset);
+          onSelectHourOffsetRef.current(cpOffset);
         }
       });
 
@@ -370,7 +382,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       marker.bindPopup(popupHtml, { maxWidth: 300, autoPan: false });
       marker.addTo(cpGroup);
     });
-  }, [routes, selectedRouteId, showCheckpoints, onSelectHourOffset]);
+  }, [routes, selectedRouteId, showCheckpoints]);
 
   // Update Timelapse Vehicle Position & Progress Line on Active Route
   useEffect(() => {

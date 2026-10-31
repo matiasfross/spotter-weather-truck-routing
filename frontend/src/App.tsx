@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { RouteInputForm } from './components/RouteInputForm';
 import { RouteComparison } from './components/RouteComparison';
@@ -21,6 +21,14 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState<boolean>(false);
+
+  const handleSelectRoute = useCallback((id: string) => {
+    setSelectedRouteId(id);
+  }, []);
+
+  const handleSelectHourOffset = useCallback((hr: number) => {
+    setForecastHourOffset(hr);
+  }, []);
 
   const handleCalculate = async (params: CalculateParams) => {
     setIsLoading(true);
@@ -103,7 +111,7 @@ export const App: React.FC = () => {
             <RouteComparison
               routes={routeData.routes}
               selectedRouteId={selectedRouteId}
-              onSelectRoute={(id) => setSelectedRouteId(id)}
+              onSelectRoute={handleSelectRoute}
               recommendationSummary={routeData.recommendation_summary}
               loadWeightLbs={routeData.load_weight_lbs}
             />
@@ -131,7 +139,7 @@ export const App: React.FC = () => {
               <RouteMap
                 routes={routeData.routes}
                 selectedRouteId={selectedRouteId}
-                onSelectRoute={(id) => setSelectedRouteId(id)}
+                onSelectRoute={handleSelectRoute}
                 corridorPoints={routeData.corridor_forecast_48h}
                 forecastHourOffset={forecastHourOffset}
                 activeMetric={activeHeatmapMetric}
@@ -139,13 +147,13 @@ export const App: React.FC = () => {
                 origin={routeData.origin}
                 destination={routeData.destination}
                 loadWeightLbs={routeData.load_weight_lbs}
-                onSelectHourOffset={(hr) => setForecastHourOffset(hr)}
+                onSelectHourOffset={handleSelectHourOffset}
               />
 
               <ForecastSlider
                 departureTimeIso={routeData.departure_time}
                 currentHourOffset={forecastHourOffset}
-                onHourChange={(hr) => setForecastHourOffset(hr)}
+                onHourChange={handleSelectHourOffset}
                 activeMetric={activeHeatmapMetric}
                 onMetricChange={(m) => setActiveHeatmapMetric(m)}
                 isHeatmapVisible={isHeatmapVisible}
