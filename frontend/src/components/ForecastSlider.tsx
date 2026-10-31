@@ -33,7 +33,7 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
   onToggleHeatmap,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState<1 | 2>(1);
+  const [playbackSpeed, setPlaybackSpeed] = useState<1 | 2 | 4>(1);
   const playIntervalRef = useRef<any>(null);
 
   const getForecastDate = (offset: number) => {
@@ -54,7 +54,7 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
 
   useEffect(() => {
     if (isPlaying) {
-      const intervalMs = playbackSpeed === 1 ? 500 : 250;
+      const intervalMs = playbackSpeed === 1 ? 500 : playbackSpeed === 2 ? 250 : 125;
       playIntervalRef.current = setInterval(() => {
         onHourChange(currentHourOffset >= 48 ? 0 : currentHourOffset + 1);
       }, intervalMs);
@@ -66,11 +66,65 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
     };
   }, [isPlaying, playbackSpeed, currentHourOffset, onHourChange]);
 
-  const metrics: { id: HeatmapMetric; label: string; shortLabel: string; icon: any; color: string }[] = [
-    { id: 'risk', label: 'Truck Risk', shortLabel: 'Risk', icon: Flame, color: 'text-red-400' },
-    { id: 'wind', label: 'Wind Speed', shortLabel: 'Wind', icon: Wind, color: 'text-sky-400' },
-    { id: 'rain', label: 'Precipitation', shortLabel: 'Rain', icon: CloudRain, color: 'text-blue-400' },
-    { id: 'snow', label: 'Snowfall', shortLabel: 'Snow', icon: Snowflake, color: 'text-cyan-400' },
+  const metrics: {
+    id: HeatmapMetric;
+    label: string;
+    shortLabel: string;
+    icon: any;
+    color: string;
+    activeBg: string;
+  }[] = [
+    {
+      id: 'risk',
+      label: 'Truck Risk',
+      shortLabel: 'Risk',
+      icon: Flame,
+      color: 'text-red-400',
+      activeBg: 'bg-red-950/70 text-red-100 border-red-500/60 shadow-red-950/50',
+    },
+    {
+      id: 'wind',
+      label: 'Wind Speed',
+      shortLabel: 'Wind',
+      icon: Wind,
+      color: 'text-sky-400',
+      activeBg: 'bg-sky-950/70 text-sky-100 border-sky-500/60 shadow-sky-950/50',
+    },
+    {
+      id: 'rain',
+      label: 'Precipitation',
+      shortLabel: 'Rain',
+      icon: CloudRain,
+      color: 'text-blue-400',
+      activeBg: 'bg-blue-950/70 text-blue-100 border-blue-500/60 shadow-blue-950/50',
+    },
+    {
+      id: 'snow',
+      label: 'Snowfall',
+      shortLabel: 'Snow',
+      icon: Snowflake,
+      color: 'text-cyan-400',
+      activeBg: 'bg-cyan-950/70 text-cyan-100 border-cyan-500/60 shadow-cyan-950/50',
+    },
+  ];
+
+  const handleMetricClick = (metricId: HeatmapMetric) => {
+    onMetricChange(metricId);
+    if (!isHeatmapVisible) {
+      onToggleHeatmap();
+    }
+  };
+
+  const handleSpeedCycle = () => {
+    setPlaybackSpeed((prev) => (prev === 1 ? 2 : prev === 2 ? 4 : 1));
+  };
+
+  const hourTicks = [
+    { offset: 0, label: '+0h (Depart)' },
+    { offset: 12, label: '+12h' },
+    { offset: 24, label: '+24h (Day 1)' },
+    { offset: 36, label: '+36h' },
+    { offset: 48, label: '+48h (Day 2)' },
   ];
 
   return (
@@ -93,7 +147,7 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
             <span className={`w-2 h-2 rounded-full ${isHeatmapVisible ? 'bg-sky-400' : 'bg-slate-600'}`}></span>
           </button>
 
-          {/* Metric Selector Pills - Always showing labels (short on mobile, full on desktop) */}
+          {/* Metric Selector Pills - With semantic color contrast */}
           <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1 overflow-x-auto max-w-full">
             {metrics.map((m) => {
               const Icon = m.icon;
@@ -102,12 +156,13 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => onMetricChange(m.id)}
-                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 sm:gap-1.5 transition cursor-pointer shrink-0 ${
+                  onClick={() => handleMetricClick(m.id)}
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 sm:gap-1.5 border transition cursor-pointer shrink-0 ${
                     active
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? `${m.activeBg} font-semibold shadow-sm`
+                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                   }`}
+                  title={`View ${m.label} heatmap across the corridor`}
                 >
                   <Icon className={`w-3.5 h-3.5 ${active ? m.color : 'text-slate-500'}`} />
                   <span className="inline sm:hidden text-[11px] font-semibold">{m.shortLabel}</span>
@@ -137,7 +192,7 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
         <button
           type="button"
           onClick={() => setIsPlaying(!isPlaying)}
-          className={`p-2.5 rounded-xl font-bold text-white transition shadow-md flex items-center justify-center ${
+          className={`p-2.5 rounded-xl font-bold text-white transition shadow-md flex items-center justify-center cursor-pointer ${
             isPlaying
               ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20'
               : 'bg-sky-600 hover:bg-sky-500 shadow-sky-600/20'
@@ -150,9 +205,9 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
         {/* Speed toggle */}
         <button
           type="button"
-          onClick={() => setPlaybackSpeed(playbackSpeed === 1 ? 2 : 1)}
-          className="text-xs font-mono font-semibold px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 transition"
-          title="Playback speed"
+          onClick={handleSpeedCycle}
+          className="text-xs font-mono font-semibold px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+          title="Playback speed (1x / 2x / 4x)"
         >
           {playbackSpeed}x
         </button>
@@ -164,15 +219,23 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
             setIsPlaying(false);
             onHourChange(0);
           }}
-          className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition"
+          className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
           title="Reset to departure hour"
         >
           <RotateCcw className="w-3.5 h-3.5" />
         </button>
 
-        {/* The 0-48h Slider */}
+        {/* The 0-48h Slider with High-Contrast Dual-Layer Track (No White Bar) */}
         <div className="flex-1 space-y-1">
-          <div className="relative">
+          <div className="relative flex items-center h-6">
+            {/* Dark base track and colored progress fill */}
+            <div className="absolute inset-x-0 h-2 bg-slate-800 rounded-full border border-slate-700/60 overflow-hidden pointer-events-none">
+              <div
+                className="h-full bg-gradient-to-r from-sky-500 via-cyan-400 to-sky-400 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.6)]"
+                style={{ width: `${(currentHourOffset / 48) * 100}%` }}
+              />
+            </div>
+            {/* Transparent input with custom thumb */}
             <input
               type="range"
               min="0"
@@ -180,17 +243,27 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
               step="1"
               value={currentHourOffset}
               onChange={(e) => onHourChange(Number(e.target.value))}
-              className="w-full accent-sky-400 h-2 bg-slate-800 rounded-lg cursor-pointer"
+              className="custom-range-slider relative z-10 w-full"
             />
           </div>
 
-          {/* Hour Ticks */}
-          <div className="flex justify-between text-[10px] text-slate-500 font-mono px-0.5">
-            <span>+0h (Depart)</span>
-            <span>+12h</span>
-            <span>+24h (Day 1)</span>
-            <span>+36h</span>
-            <span>+48h (Day 2)</span>
+          {/* Interactive Hour Ticks */}
+          <div className="flex justify-between text-[10px] font-mono px-0.5">
+            {hourTicks.map((tick) => (
+              <button
+                key={tick.offset}
+                type="button"
+                onClick={() => onHourChange(tick.offset)}
+                className={`cursor-pointer transition hover:text-sky-300 ${
+                  currentHourOffset === tick.offset
+                    ? 'text-sky-400 font-bold underline underline-offset-2'
+                    : 'text-slate-500 hover:underline'
+                }`}
+                title={`Jump to +${tick.offset}h`}
+              >
+                {tick.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>

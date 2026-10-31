@@ -43,6 +43,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const checkpointsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const heatLayerRef = useRef<any>(null);
   const markersLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const timelapseLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
   const [showCheckpoints, setShowCheckpoints] = useState(true);
   const [showLiveRadar, setShowLiveRadar] = useState(false);
@@ -91,6 +92,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     polylinesLayerGroupRef.current = L.layerGroup().addTo(map);
     checkpointsLayerGroupRef.current = L.layerGroup().addTo(map);
     markersLayerGroupRef.current = L.layerGroup().addTo(map);
+    timelapseLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -359,7 +361,141 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     });
   }, [routes, selectedRouteId, showCheckpoints]);
 
-  // Update Heatmap
+  // Update Timelapse Vehicle Position & Progress Line on Active Route
+  useEffect(() => {
+    const tlGroup = timelapseLayerGroupRef.current;
+    if (!tlGroup) return;
+
+    tlGroup.clearLayers();
+
+    const activeRoute = routes.find((r) => r.id === selectedRouteId);
+    if (!activeRoute || !activeRoute.polyline || activeRoute.polyline.length === 0) return;
+
+    const coords = activeRoute.polyline; // [[lon, lat], ...]
+    const totalDurationSec = activeRoute.duration_seconds || 1;
+    const totalMiles = activeRoute.distance_miles || 0;
+
+    // Calculate progress ratio
+    const currentElapsedSec = forecastHourOffset * 3600;
+    const progressRatio = Math.min(1.0, Math.max(0.0, currentElapsedSec / totalDurationSec));
+    const isCompleted = currentElapsedSec >= totalDurationSec;
+
+    // Haversine helper for fast local polyline interpolation
+    const haversineDist = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 3958.8;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLon = ((lon2 - lon1) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    // Calculate cumulative distances along polyline
+    const cumulativeDistances: number[] = [0];
+    let totalPolyDist = 0;
+    for (let i = 1; i < coords.length; i++) {
+      const p1 = coords[i - 1];
+      const p2 = coords[i];
+      const d = haversineDist(p1[1], p1[0], p2[1], p2[0]);
+      totalPolyDist += d;
+      cumulativeDistances.push(totalPolyDist);
+    }
+
+    const targetDistance = totalPolyDist * progressRatio;
+
+    // Find interpolation index along polyline
+    let currentIdx = 0;
+    let currentLat = coords[0][1];
+    let currentLon = coords[0][0];
+
+    for (let i = 1; i < cumulativeDistances.length; i++) {
+      if (cumulativeDistances[i] >= targetDistance) {
+        currentIdx = i;
+        const span = cumulativeDistances[i] - cumulativeDistances[i - 1];
+        const frac = span > 1e-6 ? (targetDistance - cumulativeDistances[i - 1]) / span : 0;
+        currentLat = coords[i - 1][1] + frac * (coords[i][1] - coords[i - 1][1]);
+        currentLon = coords[i - 1][0] + frac * (coords[i][0] - coords[i - 1][0]);
+        break;
+      }
+      if (i === cumulativeDistances.length - 1) {
+        currentIdx = i;
+        currentLat = coords[i][1];
+        currentLon = coords[i][0];
+      }
+    }
+
+    const currentTraveledMiles = Math.min(totalMiles, totalMiles * progressRatio);
+
+    // 1. Draw High-Contrast Traveled Progress Line (when offset > 0)
+    if (forecastHourOffset > 0 && currentIdx > 0) {
+      const traveledLatLngs: [number, number][] = [];
+      for (let i = 0; i < currentIdx; i++) {
+        traveledLatLngs.push([coords[i][1], coords[i][0]]);
+      }
+      traveledLatLngs.push([currentLat, currentLon]);
+
+      // Ultra-bold dark casing for 100% contrast against any background
+      L.polyline(traveledLatLngs, {
+        color: '#020617',
+        weight: 9,
+        opacity: 0.95,
+        lineJoin: 'round',
+      }).addTo(tlGroup);
+
+      // Luminous electric cyan foreground line
+      L.polyline(traveledLatLngs, {
+        color: '#00f0ff',
+        weight: 5.5,
+        opacity: 1,
+        lineJoin: 'round',
+      }).addTo(tlGroup);
+    }
+
+    // 2. High-Contrast Truck Beacon Marker with Glowing Pulse
+    const percentFormatted = Math.round(progressRatio * 100);
+    const labelText = isCompleted
+      ? `🎉 Arrived at Destination • ${totalMiles.toFixed(0)} mi (+${forecastHourOffset}h)`
+      : `🚚 +${forecastHourOffset}h • Mile ${currentTraveledMiles.toFixed(1)} / ${totalMiles.toFixed(0)} mi (${percentFormatted}%)`;
+
+    const truckIconHtml = `
+      <div class="timelapse-truck-container">
+        <div class="timelapse-beacon-pulse"></div>
+        <div class="timelapse-truck-badge">
+          <svg class="w-4 h-4 fill-white text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+          </svg>
+        </div>
+      </div>
+    `;
+
+    const truckIcon = L.divIcon({
+      className: 'timelapse-truck-div-icon',
+      html: truckIconHtml,
+      iconSize: [46, 46],
+      iconAnchor: [23, 23],
+    });
+
+    const truckMarker = L.marker([currentLat, currentLon], {
+      icon: truckIcon,
+      zIndexOffset: 2000,
+    }).addTo(tlGroup);
+
+    truckMarker.bindTooltip(
+      `<div class="font-mono text-xs font-bold text-white px-1 whitespace-nowrap">${labelText}</div>`,
+      {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -20],
+        className: 'custom-tooltip',
+      }
+    );
+  }, [routes, selectedRouteId, forecastHourOffset]);
+
+  // Update Heatmap with High-Contrast Weather Radar Palettes
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -380,37 +516,82 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       let intensity = 0.2;
       switch (activeMetric) {
         case 'wind':
-          intensity = Math.min(1.0, Math.max(0.1, timelinePoint.wind_mph / 55.0));
+          intensity = Math.min(1.0, Math.max(0.2, timelinePoint.wind_mph / 45.0));
           break;
         case 'rain':
-          intensity = Math.min(1.0, Math.max(0.1, timelinePoint.rain_in_hr / 0.8));
+          intensity = timelinePoint.rain_in_hr > 0
+            ? Math.min(1.0, Math.max(0.25, 0.25 + (timelinePoint.rain_in_hr / 0.5) * 0.75))
+            : 0.0;
           break;
         case 'snow':
-          intensity = Math.min(1.0, Math.max(0.1, timelinePoint.snow_in_hr / 2.5));
+          intensity = timelinePoint.snow_in_hr > 0
+            ? Math.min(1.0, Math.max(0.25, 0.25 + (timelinePoint.snow_in_hr / 1.5) * 0.75))
+            : 0.0;
           break;
         case 'risk':
         default:
-          intensity = Math.min(1.0, Math.max(0.15, timelinePoint.risk_score / 5.0));
+          intensity = Math.min(1.0, Math.max(0.2, timelinePoint.risk_score / 4.5));
           break;
       }
 
-      heatData.push([pt.lat, pt.lon, intensity]);
+      if (intensity > 0.05) {
+        heatData.push([pt.lat, pt.lon, intensity]);
+      }
     });
 
     if (heatData.length > 0 && (L as any).heatLayer) {
       try {
+        // High-contrast gradients tailored to each metric
+        let gradient: { [key: number]: string };
+        switch (activeMetric) {
+          case 'rain':
+            // High-contrast precipitation weather radar palette
+            gradient = {
+              0.15: '#06b6d4', // neon cyan
+              0.35: '#2563eb', // vivid cobalt blue
+              0.60: '#7c3aed', // electric purple
+              0.80: '#db2777', // hot magenta
+              1.00: '#ffffff', // torrential white core
+            };
+            break;
+          case 'snow':
+            // High-contrast snowstorm palette
+            gradient = {
+              0.15: '#38bdf8', // sky ice
+              0.40: '#818cf8', // periwinkle
+              0.70: '#c084fc', // electric violet
+              1.00: '#ffffff', // pure white blizzard
+            };
+            break;
+          case 'wind':
+            // High-contrast wind velocity palette
+            gradient = {
+              0.15: '#10b981', // emerald
+              0.35: '#fbbf24', // amber gold
+              0.60: '#f97316', // neon orange
+              0.85: '#ef4444', // crimson
+              1.00: '#7f1d1d', // dark red
+            };
+            break;
+          case 'risk':
+          default:
+            gradient = {
+              0.15: '#10b981', // low green
+              0.35: '#f59e0b', // moderate amber
+              0.60: '#f97316', // high orange
+              0.85: '#ef4444', // severe red
+              1.00: '#9333ea', // extreme / no-travel purple
+            };
+            break;
+        }
+
         const heatLayer = (L as any).heatLayer(heatData, {
-          radius: 40,
-          blur: 28,
-          maxZoom: 10,
+          radius: 48,
+          blur: 16,
+          maxZoom: 16,
           max: 1.0,
-          gradient: {
-            0.15: '#10b981',
-            0.40: '#f59e0b',
-            0.65: '#f97316',
-            0.85: '#ef4444',
-            1.00: '#7f1d1d',
-          },
+          minOpacity: 0.38,
+          gradient: gradient,
         });
         heatLayer.addTo(map);
         heatLayerRef.current = heatLayer;
