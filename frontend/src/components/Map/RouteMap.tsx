@@ -63,21 +63,24 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       attributionControl: true,
       center: [39.8283, -98.5795],
       zoom: 4,
+      minZoom: 3,
+      maxZoom: 18,
     });
 
-    // Default tile layer: Mapbox HD if token present, otherwise clean Esri Dark Gray (no watermarks)
+    // Default tile layer: Mapbox HD Retina 256px if token present, otherwise clean Esri Dark Gray (no watermarks)
     const initialTile = L.tileLayer(
       mapboxToken
-        ? `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`
+        ? `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`
         : ESRI_DARK_URL,
       {
         attribution: mapboxToken
           ? '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; OpenStreetMap'
           : ESRI_ATTRIBUTION,
         subdomains: 'abcd',
-        maxZoom: 19,
-        tileSize: mapboxToken ? 512 : 256,
-        zoomOffset: mapboxToken ? -1 : 0,
+        minZoom: 3,
+        maxZoom: 18,
+        tileSize: 256,
+        zoomOffset: 0,
       }
     ).addTo(map);
 
@@ -109,32 +112,25 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     let url = ESRI_DARK_URL;
     let attribution = ESRI_ATTRIBUTION;
-    let tileSize = 256;
-    let zoomOffset = 0;
 
     if (basemapStyle === 'mapbox-dark' && mapboxToken) {
-      url = `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`;
+      url = `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`;
       attribution = '&copy; <a href="https://www.mapbox.com/">Mapbox</a>';
-      tileSize = 512;
-      zoomOffset = -1;
     } else if (basemapStyle === 'mapbox-satellite' && mapboxToken) {
-      url = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`;
+      url = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxToken}`;
       attribution = '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; Maxar';
-      tileSize = 512;
-      zoomOffset = -1;
     } else if (basemapStyle === 'esri-dark') {
       url = ESRI_DARK_URL;
       attribution = ESRI_ATTRIBUTION;
-      tileSize = 256;
-      zoomOffset = 0;
     }
 
     const newTile = L.tileLayer(url, {
       attribution,
       subdomains: 'abcd',
-      maxZoom: 19,
-      tileSize,
-      zoomOffset,
+      minZoom: 3,
+      maxZoom: 18,
+      tileSize: 256,
+      zoomOffset: 0,
     }).addTo(map);
 
     // Bring under vector layers
@@ -445,38 +441,38 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       >
         <button
           onClick={handleFitBounds}
-          className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-200 shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+          className="p-1.5 sm:p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-200 shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-[11px] sm:text-xs font-medium cursor-pointer"
           title="Zoom to fit active route"
         >
-          <Maximize2 className="w-4 h-4 text-sky-400" />
-          <span className="hidden sm:inline">Fit Route</span>
+          <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400" />
+          <span>Fit Route</span>
         </button>
 
         <button
           onClick={() => setShowCheckpoints(!showCheckpoints)}
-          className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+          className={`p-1.5 sm:p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-[11px] sm:text-xs font-medium cursor-pointer ${
             showCheckpoints
               ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
               : 'bg-slate-900/90 text-slate-400 border-slate-700/80'
           }`}
           title="Toggle Checkpoints"
         >
-          {showCheckpoints ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-          <span className="hidden sm:inline">Checkpoints</span>
+          {showCheckpoints ? <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+          <span>Checkpoints</span>
         </button>
 
         {/* Live Radar Doppler Toggle (Zero-Secrets Backend Proxy) */}
         <button
           onClick={() => setShowLiveRadar(!showLiveRadar)}
-          className={`p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-xs font-medium cursor-pointer ${
+          className={`p-1.5 sm:p-2 rounded-xl border shadow-lg backdrop-blur-sm transition flex items-center gap-1.5 text-[11px] sm:text-xs font-medium cursor-pointer ${
             showLiveRadar
               ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
               : 'bg-slate-900/90 text-slate-400 border-slate-700/80'
           }`}
           title="Toggle Live Doppler Radar (Precipitation)"
         >
-          <CloudRain className="w-4 h-4 text-blue-400" />
-          <span className="hidden sm:inline">Live Radar</span>
+          <CloudRain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" />
+          <span>Live Radar</span>
         </button>
 
         {/* Mapbox Basemap Switcher if Mapbox Token is configured */}

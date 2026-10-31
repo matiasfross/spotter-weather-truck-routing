@@ -66,34 +66,35 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
     };
   }, [isPlaying, playbackSpeed, currentHourOffset, onHourChange]);
 
-  const metrics: { id: HeatmapMetric; label: string; icon: any; color: string }[] = [
-    { id: 'risk', label: 'Truck Risk', icon: Flame, color: 'text-red-400' },
-    { id: 'wind', label: 'Wind Speed', icon: Wind, color: 'text-sky-400' },
-    { id: 'rain', label: 'Precipitation', icon: CloudRain, color: 'text-blue-400' },
-    { id: 'snow', label: 'Snowfall', icon: Snowflake, color: 'text-cyan-400' },
+  const metrics: { id: HeatmapMetric; label: string; shortLabel: string; icon: any; color: string }[] = [
+    { id: 'risk', label: 'Truck Risk', shortLabel: 'Risk', icon: Flame, color: 'text-red-400' },
+    { id: 'wind', label: 'Wind Speed', shortLabel: 'Wind', icon: Wind, color: 'text-sky-400' },
+    { id: 'rain', label: 'Precipitation', shortLabel: 'Rain', icon: CloudRain, color: 'text-blue-400' },
+    { id: 'snow', label: 'Snowfall', shortLabel: 'Snow', icon: Snowflake, color: 'text-cyan-400' },
   ];
 
   return (
     <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-2xl space-y-3">
       {/* Top Bar: Metric Selection & Heatmap Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onToggleHeatmap}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition cursor-pointer ${
               isHeatmapVisible
                 ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-sm'
                 : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Corridor Heatmap</span>
+            <span className="hidden xs:inline sm:inline">Corridor Heatmap</span>
+            <span className="inline xs:hidden sm:hidden">Heatmap</span>
             <span className={`w-2 h-2 rounded-full ${isHeatmapVisible ? 'bg-sky-400' : 'bg-slate-600'}`}></span>
           </button>
 
-          {/* Metric Selector Pills */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1">
+          {/* Metric Selector Pills - Always showing labels (short on mobile, full on desktop) */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1 overflow-x-auto max-w-full">
             {metrics.map((m) => {
               const Icon = m.icon;
               const active = activeMetric === m.id;
@@ -102,13 +103,14 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
                   key={m.id}
                   type="button"
                   onClick={() => onMetricChange(m.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 sm:gap-1.5 transition cursor-pointer shrink-0 ${
                     active
                       ? 'bg-slate-800 text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 ${active ? m.color : 'text-slate-500'}`} />
+                  <span className="inline sm:hidden text-[11px] font-semibold">{m.shortLabel}</span>
                   <span className="hidden sm:inline">{m.label}</span>
                 </button>
               );
