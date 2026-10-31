@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { RouteInputForm } from './components/RouteInputForm';
 import { RouteComparison } from './components/RouteComparison';
@@ -7,9 +7,9 @@ import { ForecastSlider } from './components/ForecastSlider';
 import type { HeatmapMetric } from './components/ForecastSlider';
 import { CheckpointDetails } from './components/CheckpointDetails';
 import { RiskRulesModal } from './components/RiskRulesModal';
-import { calculateRoutes, fetchPresets } from './services/api';
+import { calculateRoutes } from './services/api';
 import type { CalculateParams } from './services/api';
-import type { RouteCalculateResponse, PresetRoute } from './types';
+import type { RouteCalculateResponse } from './types';
 import { AlertCircle, Compass } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -20,7 +20,6 @@ export const App: React.FC = () => {
   const [isHeatmapVisible, setIsHeatmapVisible] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [presets, setPresets] = useState<PresetRoute[]>([]);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState<boolean>(false);
 
   const handleCalculate = async (params: CalculateParams) => {
@@ -37,14 +36,6 @@ export const App: React.FC = () => {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    async function init() {
-      const p = await fetchPresets();
-      setPresets(p);
-    }
-    init();
-  }, []);
 
   const selectedRoute = routeData?.routes.find((r) => r.id === selectedRouteId) || routeData?.routes[0];
 
@@ -73,7 +64,6 @@ export const App: React.FC = () => {
             <RouteInputForm
               onCalculate={handleCalculate}
               isLoading={isLoading}
-              presets={presets}
             />
           </div>
         </div>

@@ -5,13 +5,11 @@ import {
   Sliders,
   Navigation,
   Loader2,
-  Sparkles,
   AlertCircle,
   Clock,
   Search,
-  CheckCircle2,
 } from 'lucide-react';
-import type { PresetRoute, PlaceSuggestion } from '../types';
+import type { PlaceSuggestion } from '../types';
 import { searchPlaces } from '../services/api';
 import { getTruckWeightCategory } from '../utils/formatting';
 
@@ -24,13 +22,11 @@ interface RouteInputFormProps {
     sampling_miles: 10 | 25 | 50;
   }) => void;
   isLoading: boolean;
-  presets: PresetRoute[];
 }
 
 export const RouteInputForm: React.FC<RouteInputFormProps> = ({
   onCalculate,
   isLoading,
-  presets,
 }) => {
   const [origin, setOrigin] = useState('Chicago, IL');
   const [destination, setDestination] = useState('Denver, CO');
@@ -50,7 +46,6 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
   const [destSuggestions, setDestSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [presetNotice, setPresetNotice] = useState<string | null>(null);
 
   const originTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,30 +127,6 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
     });
   };
 
-  const handleApplyPreset = (p: PresetRoute) => {
-    setOrigin(p.origin);
-    setDestination(p.destination);
-    setLoadWeight(p.default_weight);
-    setWeightInputStr(String(p.default_weight));
-    setSamplingMiles(p.sampling_miles);
-
-    if (typeof p.departure_offset_hours === 'number') {
-      const d = new Date();
-      d.setHours(d.getHours() + p.departure_offset_hours);
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      setDepartureTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-    }
-
-    setErrors({});
-    const timeNote = typeof p.departure_offset_hours === 'number' && p.departure_offset_hours > 0
-      ? ` (horario sincronizado a +${p.departure_offset_hours}h para coincidir con el pico adverso)`
-      : '';
-    setPresetNotice(`Escenario "${p.title}" cargado${timeNote}. Presiona "Buscar y Calcular" para evaluar el riesgo.`);
-    setTimeout(() => {
-      setPresetNotice((current) => (current?.includes(p.title) ? null : current));
-    }, 5500);
-  };
-
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -229,38 +200,6 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
-      {/* Quick Test Scenarios */}
-      {presets.length > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-            Curated Assessment Scenarios
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {presets.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleApplyPreset(p)}
-                className="text-left p-2.5 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800/80 hover:border-sky-500/40 transition group"
-              >
-                <div className="text-xs font-bold text-white group-hover:text-sky-400 truncate">
-                  {p.origin.split(',')[0]} → {p.destination.split(',')[0]}
-                </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">{p.subtitle}</div>
-              </button>
-            ))}
-          </div>
-
-          {presetNotice && (
-            <div className="mt-2.5 px-3 py-2 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-200 text-xs flex items-center gap-2 animate-fadeIn">
-              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
-              <span>{presetNotice}</span>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Main Form */}
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Origin & Destination Inputs */}
