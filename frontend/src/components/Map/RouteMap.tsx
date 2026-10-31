@@ -187,7 +187,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         iconAnchor: [14, 14],
       });
       L.marker([origin.lat, origin.lon], { icon: originIcon })
-        .bindPopup(`<strong>Origin:</strong> ${origin.name}`)
+        .bindPopup(`<strong>Origin:</strong> ${origin.name}`, { autoPan: false })
         .addTo(markerGroup);
       allLatLngs.push([origin.lat, origin.lon]);
     }
@@ -200,7 +200,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         iconAnchor: [14, 14],
       });
       L.marker([destination.lat, destination.lon], { icon: destIcon })
-        .bindPopup(`<strong>Destination:</strong> ${destination.name}`)
+        .bindPopup(`<strong>Destination:</strong> ${destination.name}`, { autoPan: false })
         .addTo(markerGroup);
       allLatLngs.push([destination.lat, destination.lon]);
     }
@@ -367,7 +367,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         </div>
       `;
 
-      marker.bindPopup(popupHtml, { maxWidth: 300 });
+      marker.bindPopup(popupHtml, { maxWidth: 300, autoPan: false });
       marker.addTo(cpGroup);
     });
   }, [routes, selectedRouteId, showCheckpoints, onSelectHourOffset]);
