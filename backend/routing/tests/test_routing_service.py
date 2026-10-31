@@ -9,6 +9,7 @@ from routing.services.routing_service import (
     haversine_distance_miles,
     sample_polyline_by_distance,
     generate_3_routes,
+    is_valid_through_route,
 )
 
 
@@ -66,3 +67,37 @@ class TestRoutingService:
             assert "duration_seconds" in r
             assert "checkpoints" in r
             assert len(r["checkpoints"]) > 5
+
+    def test_is_valid_through_route_spur_detection(self):
+        # A route that goes from (0,0) to (0,1), branches to (0.5, 1) and turns back to (0,1) and continues to (0,2)
+        # Legitimate through route:
+        clean_coords = [[-104.0 + i * 0.1, 40.0] for i in range(30)]
+        assert is_valid_through_route(clean_coords, -102.5, 40.0) is True
+
+        # Dead-end spur: travels to waypoint, turns 180° around, and retraces
+        spur_coords = []
+        for i in range(15):
+            spur_coords.append([-104.0 + i * 0.05, 40.0])  # heading east
+        for i in range(15):
+            spur_coords.append([-103.25, 40.0 + i * 0.05]) # heading north up spur
+        # waypoint at [-103.25, 40.7]
+        for i in range(15):
+            spur_coords.append([-103.25, 40.7 - i * 0.05]) # heading south down spur (retrace!)
+        for i in range(15):
+            spur_coords.append([-103.25 + i * 0.05, 40.0]) # resume east
+
+        assert is_valid_through_route(spur_coords, -103.25, 40.7) is False
+
+    def test_denver_grand_junction_no_absurd_detours(self):
+        origin = {"name": "Denver, CO", "lat": 39.7392, "lon": -104.9903}
+        dest = {"name": "Grand Junction, CO", "lat": 39.0639, "lon": -108.5506}
+        dep_time = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
+
+        routes = generate_3_routes(origin, dest, step_miles=10.0, departure_time=dep_time)
+        assert len(routes) == 3
+
+        # In the reported bug, Route 2 had an absurd 60-mile out-and-back spur into Yampa (reaching lat > 40.04)
+        # Verify that Route 2 does not have this dead-end detour:
+        r2 = routes[1]
+        max_lat_r2 = max(c[1] for c in r2["polyline"])
+        assert max_lat_r2 < 40.0  # Must not veer into the Yampa dead-end mountains

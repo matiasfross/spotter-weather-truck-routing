@@ -304,6 +304,74 @@ def _fetch_osrm_route(coords_str: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def is_valid_through_route(
+    coords: List[List[float]],
+    waypoint_lon: float,
+    waypoint_lat: float,
+    max_turn_angle_deg: float = 115.0
+) -> bool:
+    """
+    Validates whether a route passing through an intermediate waypoint is a
+    legitimate continuous through-highway, or an absurd out-and-back dead-end spur.
+    
+    Checks:
+    1. Turn angle at the snapped waypoint: if incoming and outgoing directions
+       form an acute angle (i.e. turn angle > max_turn_angle_deg, e.g. a 140°+ U-turn),
+       it's an out-and-back dead end.
+    2. Backtracking: whether points after the waypoint retrace paths within ~130m of
+       points before the waypoint.
+    """
+    if not coords or len(coords) < 20:
+        return False
+
+    min_dist = float("inf")
+    min_idx = 0
+    for idx, c in enumerate(coords):
+        d = haversine_distance_miles(c[1], c[0], waypoint_lat, waypoint_lon)
+        if d < min_dist:
+            min_dist = d
+            min_idx = idx
+
+    # If the waypoint was snapped near origin or destination, it didn't create a middle spur
+    if min_idx < 10 or min_idx > len(coords) - 10:
+        return True
+
+    # 1. Check turn angle around the waypoint (look 15 vertices back and ahead)
+    stride = min(15, min_idx - 1, len(coords) - 1 - min_idx)
+    c_prev = coords[min_idx - stride]
+    c_curr = coords[min_idx]
+    c_next = coords[min_idx + stride]
+
+    v_in = (c_curr[0] - c_prev[0], c_curr[1] - c_prev[1])
+    v_out = (c_next[0] - c_curr[0], c_next[1] - c_curr[1])
+
+    norm_in = math.sqrt(v_in[0] ** 2 + v_in[1] ** 2)
+    norm_out = math.sqrt(v_out[0] ** 2 + v_out[1] ** 2)
+    if norm_in > 1e-7 and norm_out > 1e-7:
+        dot = v_in[0] * v_out[0] + v_in[1] * v_out[1]
+        cos_angle = max(-1.0, min(1.0, dot / (norm_in * norm_out)))
+        turn_angle = math.acos(cos_angle) * 180.0 / math.pi
+        if turn_angle > max_turn_angle_deg:
+            return False
+
+    # 2. Check for corridor backtracking (points after waypoint retracing points before waypoint)
+    window = min(350, min_idx, len(coords) - min_idx)
+    before_sample = coords[min_idx - window : min_idx : 8]
+    after_sample = coords[min_idx : min_idx + window : 8]
+
+    overlaps = 0
+    for pa in after_sample:
+        for pb in before_sample:
+            # 0.08 miles is ~130 meters (covers dual carriage highway width + median)
+            if haversine_distance_miles(pa[1], pa[0], pb[1], pb[0]) < 0.08:
+                overlaps += 1
+                break
+        if overlaps >= 4:
+            return False
+
+    return True
+
+
 def _generate_synthetic_route(
     origin: Dict[str, float],
     dest: Dict[str, float],
@@ -319,7 +387,7 @@ def _generate_synthetic_route(
     route_miles = straight_miles * road_factor
     duration_sec = (route_miles / speed_mph) * 3600.0
 
-    num_pts = max(30, int(straight_miles / 20.0))
+    num_pts = max(60, int(straight_miles / 5.0))
     coords = []
     
     dx = lon2 - lon1
@@ -410,13 +478,22 @@ def generate_3_routes(
             alt2_data = fut2.result()
 
         if alt1_data and "routes" in alt1_data and len(alt1_data["routes"]) > 0:
-            raw_routes.append(alt1_data["routes"][0])
+            cand1 = alt1_data["routes"][0]
+            coords1 = cand1.get("geometry", {}).get("coordinates", [])
+            # Only accept if it is a genuine through-highway without out-and-back dead-end spurs
+            if is_valid_through_route(coords1, alt1_lon, alt1_lat):
+                raw_routes.append(cand1)
+
         if alt2_data and "routes" in alt2_data and len(alt2_data["routes"]) > 0:
-            raw_routes.append(alt2_data["routes"][0])
+            cand2 = alt2_data["routes"][0]
+            coords2 = cand2.get("geometry", {}).get("coordinates", [])
+            # Only accept if it is a genuine through-highway without out-and-back dead-end spurs
+            if is_valid_through_route(coords2, alt2_lon, alt2_lat):
+                raw_routes.append(cand2)
 
     # If still fewer than 3, complete with synthetic road curvature
     if len(raw_routes) < 3:
-        curvatures = [0.0, 0.28, -0.28]
+        curvatures = [0.0, 0.22, -0.22]
         for i in range(len(raw_routes), 3):
             curve = curvatures[i]
             speed = 58.0 - (i * 3.0)
