@@ -94,10 +94,25 @@ class TestRoutingService:
         dep_time = datetime(2026, 11, 1, 10, 0, 0, tzinfo=timezone.utc)
 
         routes = generate_3_routes(origin, dest, step_miles=10.0, departure_time=dep_time)
-        assert len(routes) == 3
+        assert len(routes) in (2, 3)
+        assert all("Procedural" not in r["routing_engine"] for r in routes)
 
-        # In the reported bug, Route 2 had an absurd 60-mile out-and-back spur into Yampa (reaching lat > 40.04)
-        # Verify that Route 2 does not have this dead-end detour:
+        # Route 1: Primary Interstate (I-70 direct)
+        assert "Interstate" in routes[0]["title"]
+        assert 240.0 < routes[0]["distance_miles"] < 255.0
+
+        # Route 2: Real Federal Highway (US-40 or US-50/285 bypass)
         r2 = routes[1]
-        max_lat_r2 = max(c[1] for c in r2["polyline"])
-        assert max_lat_r2 < 40.0  # Must not veer into the Yampa dead-end mountains
+        assert "Federal Highway" in r2["title"]
+        assert r2["distance_miles"] > 350.0  # Bypass route around the central mountain spine
+
+        # Verify that all returned routes have zero out-and-back retracing (no dead-end spurs)
+        for r in routes:
+            coords = r["polyline"]
+            retrace_count = 0
+            for i in range(0, len(coords), 10):
+                for j in range(i + 40, len(coords), 10):
+                    dist = haversine_distance_miles(coords[i][1], coords[i][0], coords[j][1], coords[j][0])
+                    if dist < 0.05:
+                        retrace_count += 1
+            assert retrace_count == 0

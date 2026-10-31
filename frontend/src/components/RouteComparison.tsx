@@ -40,8 +40,12 @@ export const RouteComparison: React.FC<RouteComparisonProps> = ({
         </div>
       </div>
 
-      {/* 3 Route Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Dynamic Route Cards Grid */}
+      <div className={`grid grid-cols-1 ${
+        routes.length === 1 ? 'md:grid-cols-1 max-w-xl mx-auto' :
+        routes.length === 2 ? 'md:grid-cols-2' :
+        'md:grid-cols-3'
+      } gap-3`}>
         {routes.map((route) => (
           <RouteCard
             key={route.id}

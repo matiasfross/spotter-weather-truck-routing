@@ -241,10 +241,11 @@ def _fetch_openrouteservice_hgv(
 def _fetch_mapbox_routes(
     lon1: float, lat1: float,
     lon2: float, lat2: float,
-    access_token: str
+    access_token: str,
+    exclude: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Query Mapbox Directions API for driving routes with alternatives."""
-    cache_key = f"mapbox_dir_{lon1}_{lat1}_{lon2}_{lat2}"
+    cache_key = f"mapbox_dir_{lon1}_{lat1}_{lon2}_{lat2}_{exclude or 'all'}"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -256,6 +257,8 @@ def _fetch_mapbox_routes(
         "overview": "full",
         "access_token": access_token
     }
+    if exclude:
+        params["exclude"] = exclude
 
     try:
         resp = HTTP_SESSION.get(url, params=params, timeout=7)
@@ -263,6 +266,10 @@ def _fetch_mapbox_routes(
             data = resp.json()
             routes = data.get("routes", [])
             raw_routes = []
+            provider_label = (
+                f"Mapbox Directions (Exclude {exclude.title()})"
+                if exclude else "Mapbox Directions Engine"
+            )
             for r in routes:
                 coords = r.get("geometry", {}).get("coordinates", [])
                 dist_m = r.get("distance", 0.0)
@@ -272,7 +279,7 @@ def _fetch_mapbox_routes(
                         "geometry": {"coordinates": coords},
                         "distance": dist_m,
                         "duration": dur_s,
-                        "provider": "Mapbox Directions Engine"
+                        "provider": provider_label
                     })
             if raw_routes:
                 cache.set(cache_key, raw_routes, timeout=7200)
@@ -372,43 +379,19 @@ def is_valid_through_route(
     return True
 
 
-def _generate_synthetic_route(
-    origin: Dict[str, float],
-    dest: Dict[str, float],
-    curvature: float = 0.0,
-    speed_mph: float = 58.0
-) -> Dict[str, Any]:
-    """Generate realistic road geometry fallback."""
-    lat1, lon1 = origin["lat"], origin["lon"]
-    lat2, lon2 = dest["lat"], dest["lon"]
-    straight_miles = haversine_distance_miles(lat1, lon1, lat2, lon2)
-    
-    road_factor = 1.18 + abs(curvature) * 0.1
-    route_miles = straight_miles * road_factor
-    duration_sec = (route_miles / speed_mph) * 3600.0
-
-    num_pts = max(60, int(straight_miles / 5.0))
-    coords = []
-    
-    dx = lon2 - lon1
-    dy = lat2 - lat1
-    perp_x = -dy
-    perp_y = dx
-
-    for i in range(num_pts + 1):
-        t = i / float(num_pts)
-        base_lat, base_lon = interpolate_coordinate(lat1, lon1, lat2, lon2, t)
-        envelope = math.sin(t * math.pi)
-        lat = base_lat + envelope * curvature * perp_y * 0.35
-        lon = base_lon + envelope * curvature * perp_x * 0.35
-        coords.append([round(lon, 5), round(lat, 5)])
-
-    return {
-        "geometry": {"coordinates": coords},
-        "distance": route_miles * MILES_TO_METERS,
-        "duration": duration_sec,
-        "provider": "Procedural Highway Simulation"
-    }
+def _is_duplicate_route(new_route: Dict[str, Any], existing_routes: List[Dict[str, Any]]) -> bool:
+    """
+    Check if a candidate route is a duplicate of an existing route based on
+    distance (< 1.5 miles delta) and duration (< 300 seconds delta).
+    """
+    new_dist = new_route.get("distance", 0.0) * METERS_TO_MILES
+    new_dur = float(new_route.get("duration", 0.0))
+    for existing in existing_routes:
+        ex_dist = existing.get("distance", 0.0) * METERS_TO_MILES
+        ex_dur = float(existing.get("duration", 0.0))
+        if abs(new_dist - ex_dist) < 1.5 and abs(new_dur - ex_dur) < 300.0:
+            return True
+    return False
 
 
 def generate_3_routes(
@@ -419,42 +402,58 @@ def generate_3_routes(
     load_weight_lbs: float = 35000.0
 ) -> List[Dict[str, Any]]:
     """
-    Generate 3 distinct route options between origin and destination.
-    Uses ORS (Heavy Goods Vehicle) or Mapbox if API keys are configured,
-    with automatic seamless fallback to OSRM.
+    Generate up to 3 distinct, 100% authentic road network route options.
+    Guarantees all routes follow real, physical, paved, navigable highways:
+    - Primary Interstate/Highway Corridor (Direct)
+    - Federal Highway / Non-Interstate Bypass (via Mapbox exclude='motorway')
+    - Secondary/Alternative Highway Corridor (native alternatives or validated through-corridors)
+    Zero synthetic/procedural straight-line curves.
     """
     lon1, lat1 = origin["lon"], origin["lat"]
     lon2, lat2 = dest["lon"], dest.get("dest_lat", dest.get("lat"))
 
-    raw_routes = []
-    provider_name = "OSRM (Open Source Routing Machine)"
+    raw_routes: List[Dict[str, Any]] = []
 
-    # 1. Try OpenRouteService if API key is present
+    # 1. Try OpenRouteService (Heavy Goods Vehicle HGV) if API key is present
     ors_key = getattr(settings, "ORS_API_KEY", "") or os.environ.get("ORS_API_KEY", "").strip()
     if ors_key:
         ors_routes = _fetch_openrouteservice_hgv(lon1, lat1, lon2, lat2, load_weight_lbs, ors_key)
-        if ors_routes:
-            raw_routes.extend(ors_routes)
-            provider_name = "OpenRouteService (Heavy Goods Vehicle HGV)"
+        for r in ors_routes:
+            if not _is_duplicate_route(r, raw_routes):
+                raw_routes.append(r)
 
-    # 2. Try Mapbox Directions if ORS is not set and Mapbox token is present
-    if not raw_routes:
-        mb_token = getattr(settings, "MAPBOX_ACCESS_TOKEN", "") or os.environ.get("MAPBOX_ACCESS_TOKEN", "").strip()
-        if mb_token:
-            mb_routes = _fetch_mapbox_routes(lon1, lat1, lon2, lat2, mb_token)
-            if mb_routes:
-                raw_routes.extend(mb_routes)
-                provider_name = "Mapbox Directions Engine"
+    # 2. Try Mapbox Directions if configured
+    mb_token = getattr(settings, "MAPBOX_ACCESS_TOKEN", "") or os.environ.get("MAPBOX_ACCESS_TOKEN", "").strip()
+    if mb_token and len(raw_routes) < 3:
+        # 2a. Direct Mapbox with alternatives=true
+        mb_routes = _fetch_mapbox_routes(lon1, lat1, lon2, lat2, mb_token)
+        for r in mb_routes:
+            if not _is_duplicate_route(r, raw_routes):
+                raw_routes.append(r)
 
-    # 3. Fallback to OSRM
-    if not raw_routes:
+        # 2b. If fewer than 3 routes, query Mapbox with exclude="motorway" (Federal / US Highways)
+        if len(raw_routes) < 3:
+            mb_non_motorway = _fetch_mapbox_routes(lon1, lat1, lon2, lat2, mb_token, exclude="motorway")
+            for r in mb_non_motorway:
+                if not _is_duplicate_route(r, raw_routes):
+                    raw_routes.append(r)
+
+    # 3. If still fewer than 3 routes, query OSRM with alternatives=true
+    if len(raw_routes) < 3:
         direct_coords_str = f"{lon1},{lat1};{lon2},{lat2}"
         osrm_data = _fetch_osrm_route(direct_coords_str)
         if osrm_data and "routes" in osrm_data:
-            raw_routes.extend(osrm_data["routes"])
-            provider_name = "OSRM (Open Source Routing Machine)"
+            for r in osrm_data["routes"]:
+                r_formatted = {
+                    "geometry": r.get("geometry", {}),
+                    "distance": r.get("distance", 0.0),
+                    "duration": r.get("duration", 0.0),
+                    "provider": "OSRM (Open Source Routing Machine)",
+                }
+                if not _is_duplicate_route(r_formatted, raw_routes):
+                    raw_routes.append(r_formatted)
 
-    # If fewer than 3 routes, query intermediate lateral waypoint corridors concurrently
+    # 4. If still fewer than 3 routes, test intermediate lateral waypoint corridors
     if len(raw_routes) < 3:
         mid_lat = (lat1 + lat2) / 2.0
         mid_lon = (lon1 + lon2) / 2.0
@@ -477,35 +476,25 @@ def generate_3_routes(
             alt1_data = fut1.result()
             alt2_data = fut2.result()
 
-        if alt1_data and "routes" in alt1_data and len(alt1_data["routes"]) > 0:
-            cand1 = alt1_data["routes"][0]
-            coords1 = cand1.get("geometry", {}).get("coordinates", [])
-            # Only accept if it is a genuine through-highway without out-and-back dead-end spurs
-            if is_valid_through_route(coords1, alt1_lon, alt1_lat):
-                raw_routes.append(cand1)
+        for alt_data, wp_lon, wp_lat in [(alt1_data, alt1_lon, alt1_lat), (alt2_data, alt2_lon, alt2_lat)]:
+            if len(raw_routes) >= 3:
+                break
+            if alt_data and "routes" in alt_data and len(alt_data["routes"]) > 0:
+                cand = alt_data["routes"][0]
+                coords_cand = cand.get("geometry", {}).get("coordinates", [])
+                # Only accept if it is a genuine through-highway without out-and-back dead-end spurs
+                if is_valid_through_route(coords_cand, wp_lon, wp_lat):
+                    cand_formatted = {
+                        "geometry": cand.get("geometry", {}),
+                        "distance": cand.get("distance", 0.0),
+                        "duration": cand.get("duration", 0.0),
+                        "provider": "OSRM Through-Corridor Engine",
+                    }
+                    if not _is_duplicate_route(cand_formatted, raw_routes):
+                        raw_routes.append(cand_formatted)
 
-        if alt2_data and "routes" in alt2_data and len(alt2_data["routes"]) > 0:
-            cand2 = alt2_data["routes"][0]
-            coords2 = cand2.get("geometry", {}).get("coordinates", [])
-            # Only accept if it is a genuine through-highway without out-and-back dead-end spurs
-            if is_valid_through_route(coords2, alt2_lon, alt2_lat):
-                raw_routes.append(cand2)
-
-    # If still fewer than 3, complete with synthetic road curvature
-    if len(raw_routes) < 3:
-        curvatures = [0.0, 0.22, -0.22]
-        for i in range(len(raw_routes), 3):
-            curve = curvatures[i]
-            speed = 58.0 - (i * 3.0)
-            raw_routes.append(_generate_synthetic_route(origin, dest, curvature=curve, speed_mph=speed))
-
+    # Strictly limit to top 3 real physical routes (Zero synthetic filler)
     raw_routes = raw_routes[:3]
-
-    route_names = [
-        ("Route 1", "Primary Interstate Corridor (Direct)"),
-        ("Route 2", "Northern / Highway Alternative"),
-        ("Route 3", "Southern / Scenic Corridor"),
-    ]
 
     processed_routes = []
     for idx, raw in enumerate(raw_routes):
@@ -526,7 +515,16 @@ def generate_3_routes(
         minutes = int((dur_seconds % 3600) // 60)
         dur_formatted = f"{hours}h {minutes}m"
 
-        short_name, full_name = route_names[idx]
+        short_name = f"Route {idx + 1}"
+        provider = raw.get("provider", "")
+        if idx == 0:
+            full_name = "Primary Interstate Corridor (Direct)"
+        elif "Exclude Motorway" in provider or "Non-Motorway" in provider:
+            full_name = "Federal Highway / Non-Interstate Bypass"
+        elif idx == 1:
+            full_name = "Secondary Highway Corridor"
+        else:
+            full_name = "Alternative Transit Corridor"
 
         # Visually simplify polyline coordinates to reduce JSON payload and map SVG memory
         visual_polyline = simplify_polyline_rdp(coords, epsilon=0.0001)
@@ -536,7 +534,7 @@ def generate_3_routes(
             "route_number": idx + 1,
             "name": short_name,
             "title": full_name,
-            "routing_engine": raw.get("provider", provider_name),
+            "routing_engine": provider or "OSRM (Open Source Routing Machine)",
             "distance_miles": dist_miles,
             "duration_seconds": int(dur_seconds),
             "duration_formatted": dur_formatted,
