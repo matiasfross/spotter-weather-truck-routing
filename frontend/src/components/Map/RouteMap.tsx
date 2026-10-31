@@ -59,7 +59,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     mapboxToken ? 'mapbox-dark' : 'esri-dark'
   );
 
-  const lastFittedRoutesRef = useRef<any>(null);
+  const lastFittedFingerprintRef = useRef<string>('');
   const onSelectRouteRef = useRef(onSelectRoute);
   const onSelectHourOffsetRef = useRef(onSelectHourOffset);
 
@@ -79,7 +79,10 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       zoom: 4,
       minZoom: 3,
       maxZoom: 18,
+      doubleClickZoom: false,
     });
+
+    map.doubleClickZoom.disable();
 
     // Default tile layer: clean Esri Dark Gray base
     const initialTile = L.tileLayer(ESRI_DARK_URL, {
@@ -195,7 +198,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         iconSize: [28, 28],
         iconAnchor: [14, 14],
       });
-      L.marker([origin.lat, origin.lon], { icon: originIcon })
+      L.marker([origin.lat, origin.lon], { icon: originIcon, autoPanOnFocus: false })
         .bindPopup(`<strong>Origin:</strong> ${origin.name}`, { autoPan: false })
         .addTo(markerGroup);
       allLatLngs.push([origin.lat, origin.lon]);
@@ -208,7 +211,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         iconSize: [28, 28],
         iconAnchor: [14, 14],
       });
-      L.marker([destination.lat, destination.lon], { icon: destIcon })
+      L.marker([destination.lat, destination.lon], { icon: destIcon, autoPanOnFocus: false })
         .bindPopup(`<strong>Destination:</strong> ${destination.name}`, { autoPan: false })
         .addTo(markerGroup);
       allLatLngs.push([destination.lat, destination.lon]);
@@ -250,6 +253,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         onSelectRouteRef.current?.(route.id);
       });
 
+      altLine.on('dblclick', (e) => {
+        if (e.originalEvent) {
+          e.originalEvent.stopPropagation();
+          e.originalEvent.preventDefault();
+        }
+      });
+
       altLine.bindTooltip(
         `<strong>${route.name}</strong> • ${route.duration_formatted} • ${route.distance_miles.toFixed(0)} mi<br/><span style="font-size: 10px; color: #38bdf8;">Click to switch to this route</span>`,
         {
@@ -281,9 +291,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       }).addTo(polyGroup);
     }
 
-    const isNewRouteData = lastFittedRoutesRef.current !== routes;
+    const routesFingerprint = routes && routes.length > 0
+      ? routes.map((r) => `${r.id}_${r.distance_miles.toFixed(2)}`).join('|')
+      : '';
+    const isNewRouteData = Boolean(
+      routesFingerprint && lastFittedFingerprintRef.current !== routesFingerprint
+    );
     if (isNewRouteData && allLatLngs.length > 0) {
-      lastFittedRoutesRef.current = routes;
+      lastFittedFingerprintRef.current = routesFingerprint;
       const bounds = L.latLngBounds(allLatLngs);
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
     }
@@ -322,10 +337,20 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       });
 
       marker.on('click', (e) => {
-        L.DomEvent.stopPropagation(e);
+        if (e.originalEvent) {
+          e.originalEvent.stopPropagation();
+          e.originalEvent.preventDefault();
+        }
         if (onSelectHourOffsetRef.current) {
           const cpOffset = Math.round((cp.cumulative_duration_seconds / 3600) * 4) / 4;
           onSelectHourOffsetRef.current(cpOffset);
+        }
+      });
+
+      marker.on('dblclick', (e) => {
+        if (e.originalEvent) {
+          e.originalEvent.stopPropagation();
+          e.originalEvent.preventDefault();
         }
       });
 
@@ -508,6 +533,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     const truckMarker = L.marker([currentLat, currentLon], {
       icon: truckIcon,
       zIndexOffset: 2000,
+      autoPanOnFocus: false,
     }).addTo(tlGroup);
 
     truckMarker.bindTooltip(
