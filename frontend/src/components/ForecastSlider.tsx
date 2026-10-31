@@ -39,7 +39,8 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
   const getForecastDate = (offset: number) => {
     try {
       const base = new Date(departureTimeIso);
-      base.setHours(base.getHours() + offset);
+      const totalMinutes = Math.round(offset * 60);
+      base.setMinutes(base.getMinutes() + totalMinutes);
       return base.toLocaleString('en-US', {
         weekday: 'short',
         month: 'short',
@@ -48,15 +49,27 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
         minute: '2-digit',
       });
     } catch {
-      return `+${offset} hours`;
+      const hrs = Math.floor(offset);
+      const mins = Math.round((offset - hrs) * 60);
+      return mins > 0 ? `+${hrs}h ${mins}m` : `+${hrs}h`;
     }
+  };
+
+  const formatHourOffsetBadge = (offset: number) => {
+    const hrs = Math.floor(offset);
+    const mins = Math.round((offset - hrs) * 60);
+    return mins > 0 ? `+${hrs}h ${mins}m` : `+${hrs}h`;
   };
 
   useEffect(() => {
     if (isPlaying) {
-      const intervalMs = playbackSpeed === 1 ? 500 : playbackSpeed === 2 ? 250 : 125;
+      // 0.25h increments: at 1x speed: 120ms per step (~2h / sec)
+      // at 2x: 60ms per step (~4h / sec)
+      // at 4x: 30ms per step (~8h / sec)
+      const intervalMs = playbackSpeed === 1 ? 120 : playbackSpeed === 2 ? 60 : 30;
       playIntervalRef.current = setInterval(() => {
-        onHourChange(currentHourOffset >= 48 ? 0 : currentHourOffset + 1);
+        const next = Math.round((currentHourOffset + 0.25) * 100) / 100;
+        onHourChange(next > 48 ? 0 : next);
       }, intervalMs);
     } else {
       if (playIntervalRef.current) clearInterval(playIntervalRef.current);
@@ -181,7 +194,7 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
             {getForecastDate(currentHourOffset)}
           </span>
           <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">
-            +{currentHourOffset}h
+            {formatHourOffsetBadge(currentHourOffset)}
           </span>
         </div>
       </div>
@@ -240,9 +253,9 @@ export const ForecastSlider: React.FC<ForecastSliderProps> = ({
               type="range"
               min="0"
               max="48"
-              step="1"
+              step="0.25"
               value={currentHourOffset}
-              onChange={(e) => onHourChange(Number(e.target.value))}
+              onChange={(e) => onHourChange(parseFloat(e.target.value))}
               className="custom-range-slider relative z-10 w-full"
             />
           </div>

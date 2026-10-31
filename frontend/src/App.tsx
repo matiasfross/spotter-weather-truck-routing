@@ -149,6 +149,7 @@ export const App: React.FC = () => {
                 origin={routeData.origin}
                 destination={routeData.destination}
                 loadWeightLbs={routeData.load_weight_lbs}
+                onSelectHourOffset={(hr) => setForecastHourOffset(hr)}
               />
 
               <ForecastSlider

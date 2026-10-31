@@ -18,6 +18,7 @@ interface RouteMapProps {
   origin?: { name: string; lat: number; lon: number };
   destination?: { name: string; lat: number; lon: number };
   loadWeightLbs?: number;
+  onSelectHourOffset?: (hour: number) => void;
 }
 
 type BasemapStyle = 'esri-dark' | 'mapbox-dark' | 'mapbox-satellite';
@@ -36,6 +37,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   origin,
   destination,
   loadWeightLbs = 35000,
+  onSelectHourOffset,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -90,6 +92,11 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     tileLayerRef.current = initialTile;
 
     L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    if (!map.getPane('checkpointsPane')) {
+      const cpPane = map.createPane('checkpointsPane');
+      cpPane.style.zIndex = '620';
+    }
 
     polylinesLayerGroupRef.current = L.layerGroup().addTo(map);
     checkpointsLayerGroupRef.current = L.layerGroup().addTo(map);
@@ -297,15 +304,24 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       const isNoTravel = risk.is_no_travel;
       const isSevere = risk.overall_risk === 'SEVERE';
 
-      const radius = isNoTravel ? 9 : isSevere ? 7.5 : 6;
+      const radius = isNoTravel ? 11 : isSevere ? 9.5 : 8;
 
       const marker = L.circleMarker([cp.lat, cp.lon], {
+        pane: 'checkpointsPane',
+        className: 'checkpoint-marker-interactive',
         radius: radius,
         fillColor: color,
         color: '#ffffff',
-        weight: isNoTravel ? 2.5 : 1.5,
+        weight: 2.5,
         opacity: 1,
         fillOpacity: 0.95,
+      });
+
+      marker.on('click', () => {
+        if (onSelectHourOffset) {
+          const cpOffset = Math.round((cp.cumulative_duration_seconds / 3600) * 4) / 4;
+          onSelectHourOffset(cpOffset);
+        }
       });
 
       const popupHtml = `
@@ -361,7 +377,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       marker.bindPopup(popupHtml, { maxWidth: 300 });
       marker.addTo(cpGroup);
     });
-  }, [routes, selectedRouteId, showCheckpoints]);
+  }, [routes, selectedRouteId, showCheckpoints, onSelectHourOffset]);
 
   // Update Timelapse Vehicle Position & Progress Line on Active Route
   useEffect(() => {
@@ -458,16 +474,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     }
 
     // 2. High-Contrast Truck Beacon Marker with Glowing Pulse
+    const hrs = Math.floor(forecastHourOffset);
+    const mins = Math.round((forecastHourOffset - hrs) * 60);
+    const offsetFormatted = mins > 0 ? `+${hrs}h ${mins}m` : `+${hrs}h`;
     const percentFormatted = Math.round(progressRatio * 100);
     const labelText = isCompleted
-      ? `🎉 Arrived at Destination • ${totalMiles.toFixed(0)} mi (+${forecastHourOffset}h)`
-      : `🚚 +${forecastHourOffset}h • Mile ${currentTraveledMiles.toFixed(1)} / ${totalMiles.toFixed(0)} mi (${percentFormatted}%)`;
+      ? `🎉 Arrived at Destination • ${totalMiles.toFixed(0)} mi (${offsetFormatted})`
+      : `🚚 ${offsetFormatted} • Mile ${currentTraveledMiles.toFixed(1)} / ${totalMiles.toFixed(0)} mi (${percentFormatted}%)`;
 
     const truckIconHtml = `
       <div class="timelapse-truck-container">
         <div class="timelapse-beacon-pulse"></div>
         <div class="timelapse-truck-badge">
-          <svg class="w-4 h-4 fill-white text-white" viewBox="0 0 24 24" fill="currentColor">
+          <svg class="w-3.5 h-3.5 fill-white text-white" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
           </svg>
         </div>
@@ -477,8 +496,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     const truckIcon = L.divIcon({
       className: 'timelapse-truck-div-icon',
       html: truckIconHtml,
-      iconSize: [46, 46],
-      iconAnchor: [23, 23],
+      iconSize: [38, 38],
+      iconAnchor: [19, 19],
     });
 
     const truckMarker = L.marker([currentLat, currentLon], {
@@ -491,7 +510,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       {
         permanent: true,
         direction: 'top',
-        offset: [0, -20],
+        offset: [0, -18],
         className: 'custom-tooltip',
       }
     );
@@ -660,17 +679,18 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     };
   };
 
-  // Update Corridor Heatmap strictly following PDF Risk Rules (rendered strictly along the route)
+  // Update Corridor Heatmap strictly following PDF Risk Rules (dynamically linked to the timelapse hour)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    if (heatLayerRef.current) {
-      map.removeLayer(heatLayerRef.current);
-      heatLayerRef.current = null;
+    if (!isHeatmapVisible || !corridorPoints || corridorPoints.length === 0) {
+      if (heatLayerRef.current) {
+        map.removeLayer(heatLayerRef.current);
+        heatLayerRef.current = null;
+      }
+      return;
     }
-
-    if (!isHeatmapVisible || !corridorPoints || corridorPoints.length === 0) return;
 
     const heatData: [number, number, number][] = [];
 
@@ -679,10 +699,27 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       ? corridorPoints.filter((pt) => !pt.route_id || pt.route_id === selectedRouteId)
       : corridorPoints;
 
+    const lowerHour = Math.min(48, Math.max(0, Math.floor(forecastHourOffset)));
+    const upperHour = Math.min(48, Math.max(0, Math.ceil(forecastHourOffset)));
+    const frac = forecastHourOffset - lowerHour;
+
     activeRouteCorridorPoints.forEach((pt) => {
-      const timelinePoint =
-        pt.timeline.find((t) => t.hour_offset === forecastHourOffset) || pt.timeline[0];
-      if (!timelinePoint) return;
+      const lowerTp = pt.timeline.find((t) => t.hour_offset === lowerHour) || pt.timeline[0];
+      const upperTp = pt.timeline.find((t) => t.hour_offset === upperHour) || lowerTp;
+
+      if (!lowerTp) return;
+
+      // Continuous weather interpolation between hours for smooth timelapse transition
+      let timelinePoint = lowerTp;
+      if (lowerHour !== upperHour && upperTp) {
+        timelinePoint = {
+          ...lowerTp,
+          wind_mph: lowerTp.wind_mph * (1 - frac) + upperTp.wind_mph * frac,
+          rain_in_hr: lowerTp.rain_in_hr * (1 - frac) + upperTp.rain_in_hr * frac,
+          snow_in_hr: lowerTp.snow_in_hr * (1 - frac) + upperTp.snow_in_hr * frac,
+          risk_score: Math.max(lowerTp.risk_score, upperTp.risk_score),
+        };
+      }
 
       const classification = classifyConditionPerPdf(activeMetric, timelinePoint, loadWeightLbs);
 
@@ -692,7 +729,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       }
     });
 
-    if (heatData.length > 0 && (L as any).heatLayer) {
+    if (heatLayerRef.current) {
+      if (heatData.length > 0) {
+        heatLayerRef.current.setLatLngs(heatData);
+      } else {
+        map.removeLayer(heatLayerRef.current);
+        heatLayerRef.current = null;
+      }
+    } else if (heatData.length > 0 && (L as any).heatLayer) {
       try {
         const heatLayer = (L as any).heatLayer(heatData, {
           radius: 25,
