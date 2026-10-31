@@ -43,9 +43,11 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
   };
 
   const [departureTime, setDepartureTime] = useState(getDefaultDateTime());
-  const [loadWeight, setLoadWeight] = useState(42000);
+  const [loadWeight, setLoadWeight] = useState<number>(42000);
+  const [weightInputStr, setWeightInputStr] = useState<string>('42000');
   const [samplingMiles, setSamplingMiles] = useState<10 | 25 | 50>(25);
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
   const [destSuggestions, setDestSuggestions] = useState<PlaceSuggestion[]>([]);
   const [presetNotice, setPresetNotice] = useState<string | null>(null);
@@ -57,6 +59,12 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
 
   const handleOriginChange = (val: string) => {
     setOrigin(val);
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.origin;
+      return copy;
+    });
+
     if (originTimeoutRef.current) clearTimeout(originTimeoutRef.current);
     if (val.trim().length >= 2) {
       originTimeoutRef.current = setTimeout(async () => {
@@ -70,6 +78,12 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
 
   const handleDestChange = (val: string) => {
     setDestination(val);
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.destination;
+      return copy;
+    });
+
     if (destTimeoutRef.current) clearTimeout(destTimeoutRef.current);
     if (val.trim().length >= 2) {
       destTimeoutRef.current = setTimeout(async () => {
@@ -81,20 +95,110 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
     }
   };
 
+  const handleDepartureTimeChange = (val: string) => {
+    setDepartureTime(val);
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.departureTime;
+      return copy;
+    });
+  };
+
+  const handleWeightChange = (valStr: string) => {
+    setWeightInputStr(valStr);
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.loadWeight;
+      return copy;
+    });
+
+    if (valStr.trim() === '') {
+      return;
+    }
+
+    const num = parseInt(valStr, 10);
+    if (!isNaN(num)) {
+      setLoadWeight(num);
+    }
+  };
+
+  const handleSliderChange = (num: number) => {
+    setLoadWeight(num);
+    setWeightInputStr(String(num));
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.loadWeight;
+      return copy;
+    });
+  };
+
   const handleApplyPreset = (p: PresetRoute) => {
     setOrigin(p.origin);
     setDestination(p.destination);
     setLoadWeight(p.default_weight);
+    setWeightInputStr(String(p.default_weight));
     setSamplingMiles(p.sampling_miles);
+    setErrors({});
     setPresetNotice(`Escenario "${p.title}" cargado en el formulario. Presiona "Buscar y Calcular" para ver las rutas.`);
     setTimeout(() => {
       setPresetNotice((current) => (current?.includes(p.title) ? null : current));
     }, 4500);
   };
 
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    const cleanOrigin = origin.trim();
+    const cleanDest = destination.trim();
+
+    if (!cleanOrigin) {
+      newErrors.origin = 'El origen de la ruta es obligatorio.';
+    } else if (cleanOrigin.length < 2) {
+      newErrors.origin = 'El origen debe tener al menos 2 caracteres.';
+    }
+
+    if (!cleanDest) {
+      newErrors.destination = 'El destino de la ruta es obligatorio.';
+    } else if (cleanDest.length < 2) {
+      newErrors.destination = 'El destino debe tener al menos 2 caracteres.';
+    }
+
+    if (cleanOrigin && cleanDest && cleanOrigin.toLowerCase() === cleanDest.toLowerCase()) {
+      newErrors.destination = 'El destino no puede ser igual al origen.';
+    }
+
+    if (!departureTime) {
+      newErrors.departureTime = 'La fecha y hora de salida es obligatoria.';
+    } else {
+      const depDate = new Date(departureTime).getTime();
+      const now = Date.now();
+      if (isNaN(depDate)) {
+        newErrors.departureTime = 'Fecha y hora de salida inválida.';
+      } else if (depDate < now - 2 * 3600 * 1000) {
+        newErrors.departureTime = 'La fecha de salida no puede ser anterior a la hora actual.';
+      } else if (depDate > now + 14 * 24 * 3600 * 1000) {
+        newErrors.departureTime = 'La salida debe estar dentro de los próximos 14 días (límite del pronóstico).';
+      }
+    }
+
+    const weightNum = Number(loadWeight);
+    if (weightInputStr.trim() === '' || isNaN(weightNum)) {
+      newErrors.loadWeight = 'Ingresa el peso de la carga en libras.';
+    } else if (weightNum < 0) {
+      newErrors.loadWeight = 'El peso de carga no puede ser negativo.';
+    } else if (weightNum > 90000) {
+      newErrors.loadWeight = 'El peso máximo permitido es de 90,000 lbs (límite federal de transporte).';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin.trim() || !destination.trim()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     let isoDate: string;
     try {
@@ -104,8 +208,8 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
     }
 
     onCalculate({
-      origin,
-      destination,
+      origin: origin.trim(),
+      destination: destination.trim(),
       departure_time: isoDate,
       load_weight_lbs: Number(loadWeight),
       sampling_miles: samplingMiles,
@@ -147,7 +251,7 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
       )}
 
       {/* Main Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Origin & Destination Inputs */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Origin */}
@@ -161,9 +265,18 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
               value={origin}
               onChange={(e) => handleOriginChange(e.target.value)}
               placeholder="e.g. Chicago, IL or lat,lon"
-              required
-              className="w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 transition"
+              className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 transition ${
+                errors.origin
+                  ? 'border-red-500/80 bg-red-950/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                  : 'border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
+              }`}
             />
+            {errors.origin && (
+              <p className="text-[11px] text-red-400 flex items-center gap-1 mt-1 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {errors.origin}
+              </p>
+            )}
             {originSuggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-800">
                 {originSuggestions.map((s, idx) => (
@@ -173,6 +286,11 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
                     onClick={() => {
                       setOrigin(s.name);
                       setOriginSuggestions([]);
+                      setErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.origin;
+                        return copy;
+                      });
                     }}
                     className="w-full text-left px-3.5 py-2 text-xs text-slate-200 hover:bg-slate-800 transition truncate"
                   >
@@ -194,9 +312,18 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
               value={destination}
               onChange={(e) => handleDestChange(e.target.value)}
               placeholder="e.g. Denver, CO or lat,lon"
-              required
-              className="w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 transition"
+              className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 transition ${
+                errors.destination
+                  ? 'border-red-500/80 bg-red-950/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                  : 'border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
+              }`}
             />
+            {errors.destination && (
+              <p className="text-[11px] text-red-400 flex items-center gap-1 mt-1 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {errors.destination}
+              </p>
+            )}
             {destSuggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-800">
                 {destSuggestions.map((s, idx) => (
@@ -206,6 +333,11 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
                     onClick={() => {
                       setDestination(s.name);
                       setDestSuggestions([]);
+                      setErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.destination;
+                        return copy;
+                      });
                     }}
                     className="w-full text-left px-3.5 py-2 text-xs text-slate-200 hover:bg-slate-800 transition truncate"
                   >
@@ -228,10 +360,19 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
             <input
               type="datetime-local"
               value={departureTime}
-              onChange={(e) => setDepartureTime(e.target.value)}
-              required
-              className="w-full bg-slate-950 border border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 rounded-xl px-3.5 py-2 text-sm text-white transition"
+              onChange={(e) => handleDepartureTimeChange(e.target.value)}
+              className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2 text-sm text-white transition ${
+                errors.departureTime
+                  ? 'border-red-500/80 bg-red-950/20 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                  : 'border-slate-700/80 focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
+              }`}
             />
+            {errors.departureTime && (
+              <p className="text-[11px] text-red-400 flex items-center gap-1 mt-1 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {errors.departureTime}
+              </p>
+            )}
           </div>
 
           {/* Sampling Interval (10 / 25 / 50 miles) */}
@@ -284,21 +425,33 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
               type="range"
               min="0"
               max="80000"
-              step="1000"
+              step="50"
               value={loadWeight}
-              onChange={(e) => setLoadWeight(Number(e.target.value))}
+              onChange={(e) => handleSliderChange(Number(e.target.value))}
               className="w-full accent-sky-500 h-2 bg-slate-800 rounded-lg cursor-pointer"
             />
             <input
               type="number"
               min="0"
               max="90000"
-              step="500"
-              value={loadWeight}
-              onChange={(e) => setLoadWeight(Number(e.target.value))}
-              className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white text-right font-mono"
+              step="1"
+              value={weightInputStr}
+              onChange={(e) => handleWeightChange(e.target.value)}
+              className={`w-28 bg-slate-900 border rounded-lg px-2.5 py-1 text-xs text-white text-right font-mono transition ${
+                errors.loadWeight
+                  ? 'border-red-500/80 bg-red-950/30 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                  : 'border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500'
+              }`}
+              placeholder="lbs"
             />
           </div>
+
+          {errors.loadWeight && (
+            <p className="text-[11px] text-red-400 flex items-center gap-1 font-medium">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              {errors.loadWeight}
+            </p>
+          )}
 
           <div className="flex items-start gap-2 text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -308,6 +461,14 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Validation Errors Notice */}
+        {Object.keys(errors).length > 0 && (
+          <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center gap-2 animate-fadeIn">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>Por favor corrige los datos señalados en rojo antes de calcular las rutas.</span>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button
