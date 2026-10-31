@@ -23,44 +23,48 @@ from routing.services.corridor_service import build_corridor_48h_forecast
 
 PRESET_ROUTES = [
     {
-        "id": "chicago-denver",
-        "title": "Chicago, IL → Denver, CO",
-        "subtitle": "Cross-Plains High Winds & Mountain Elevation",
-        "origin": "Chicago, IL",
-        "destination": "Denver, CO",
-        "default_weight": 42000,
+        "id": "miami-tampa-severe-rain",
+        "title": "Miami, FL → Tampa, FL",
+        "subtitle": "🔴 Lluvia Torrencial & NO TRAVEL (>0.75 in/hr)",
+        "origin": "Miami, FL",
+        "destination": "Tampa, FL",
+        "default_weight": 35000,
         "sampling_miles": 25,
-        "description": "Crosses the wind corridor of Iowa and Nebraska where winds regularly exceed 35-45 mph."
+        "departure_offset_hours": 7,
+        "description": "Prueba de detención obligatoria (NO TRAVEL) por precipitación extrema (0.89 in/hr) e inundación repentina."
     },
     {
-        "id": "seattle-slc",
-        "title": "Seattle, WA → Salt Lake City, UT",
-        "subtitle": "Pacific Northwest Winter Pass & Snow Hazards",
-        "origin": "Seattle, WA",
+        "id": "cheyenne-slc-extreme-wind",
+        "title": "Cheyenne, WY → Salt Lake City, UT",
+        "subtitle": "🔴 Ráfagas 48 mph & NO TRAVEL por Peso",
+        "origin": "Cheyenne, WY",
         "destination": "Salt Lake City, UT",
+        "default_weight": 48000,
+        "sampling_miles": 25,
+        "departure_offset_hours": 64,
+        "description": "Prueba de vuelco por viento cruzado en corredor I-80 con camión pesado (>30,000 lbs)."
+    },
+    {
+        "id": "chicago-omaha-rain-front",
+        "title": "Chicago, IL → Omaha, NE",
+        "subtitle": "🟠 Desempate de Rutas por Frente de Lluvia",
+        "origin": "Chicago, IL",
+        "destination": "Omaha, NE",
         "default_weight": 38000,
         "sampling_miles": 25,
-        "description": "Tests mountain passes (Cascades & Blue Mountains) with heavy snow and freezing conditions."
+        "departure_offset_hours": 1,
+        "description": "Demuestra la selección de ruta por menores millas de alto riesgo (Tier 2)."
     },
     {
-        "id": "dallas-atlanta",
-        "title": "Dallas, TX → Atlanta, GA",
-        "subtitle": "Southern Interstate Rain & Thunderstorm Front",
-        "origin": "Dallas, TX",
-        "destination": "Atlanta, GA",
-        "default_weight": 28000,
-        "sampling_miles": 25,
-        "description": "Evaluates heavy rainfall, flash flood risk, and wind speed variations along I-20 corridor."
-    },
-    {
-        "id": "newyork-miami",
-        "title": "New York, NY → Miami, FL",
-        "subtitle": "East Coast I-95 Long-Haul Logistics",
-        "origin": "New York, NY",
-        "destination": "Miami, FL",
-        "default_weight": 32000,
-        "sampling_miles": 50,
-        "description": "1,200+ mile corridor demonstrating long-haul sampling and forecast progression."
+        "id": "denver-grandjunction-rockies",
+        "title": "Denver, CO → Grand Junction, CO",
+        "subtitle": "❄️ Paso de Montaña & Gran Altitud (I-70)",
+        "origin": "Denver, CO",
+        "destination": "Grand Junction, CO",
+        "default_weight": 42000,
+        "sampling_miles": 10,
+        "departure_offset_hours": 0,
+        "description": "Prueba de corredor montañoso de gran elevación (11,000+ ft) y pendientes extremas."
     }
 ]
 

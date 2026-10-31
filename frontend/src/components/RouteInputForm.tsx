@@ -138,11 +138,22 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
     setLoadWeight(p.default_weight);
     setWeightInputStr(String(p.default_weight));
     setSamplingMiles(p.sampling_miles);
+
+    if (typeof p.departure_offset_hours === 'number') {
+      const d = new Date();
+      d.setHours(d.getHours() + p.departure_offset_hours);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      setDepartureTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    }
+
     setErrors({});
-    setPresetNotice(`Escenario "${p.title}" cargado en el formulario. Presiona "Buscar y Calcular" para ver las rutas.`);
+    const timeNote = typeof p.departure_offset_hours === 'number' && p.departure_offset_hours > 0
+      ? ` (horario sincronizado a +${p.departure_offset_hours}h para coincidir con el pico adverso)`
+      : '';
+    setPresetNotice(`Escenario "${p.title}" cargado${timeNote}. Presiona "Buscar y Calcular" para evaluar el riesgo.`);
     setTimeout(() => {
       setPresetNotice((current) => (current?.includes(p.title) ? null : current));
-    }, 4500);
+    }, 5500);
   };
 
   const validateForm = (): boolean => {

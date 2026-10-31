@@ -125,6 +125,7 @@ export interface PresetRoute {
   destination: string;
   default_weight: number;
   sampling_miles: 10 | 25 | 50;
+  departure_offset_hours?: number;
   description: string;
 }
 
