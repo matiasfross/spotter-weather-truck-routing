@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   MapPin,
   Scale,
@@ -41,6 +41,18 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
   const [loadWeight, setLoadWeight] = useState<number>(42000);
   const [weightInputStr, setWeightInputStr] = useState<string>('42000');
   const [samplingMiles, setSamplingMiles] = useState<10 | 25 | 50>(25);
+  const [showColdStartHint, setShowColdStartHint] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) return;
+    const timer = setTimeout(() => {
+      setShowColdStartHint(true);
+    }, 4500);
+    return () => {
+      clearTimeout(timer);
+      setShowColdStartHint(false);
+    };
+  }, [isLoading]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -437,6 +449,13 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
             </>
           )}
         </button>
+
+        {isLoading && showColdStartHint && (
+          <div className="p-2.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-300 text-xs flex items-center justify-center gap-2 animate-fadeIn text-center">
+            <Clock className="w-3.5 h-3.5 text-sky-400 shrink-0 animate-spin" />
+            <span>Conectando con el servidor en la nube... (iniciando contenedor)</span>
+          </div>
+        )}
       </form>
     </div>
   );

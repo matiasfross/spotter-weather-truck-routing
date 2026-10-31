@@ -148,6 +148,8 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Cloud Deployment Guide
 
+> 📖 **Guía Rápida de Despliegue 100% Gratuito y 24/7 Activo ($0 USD):** Consulta [`DEPLOYMENT_GUIDE_FREE.md`](DEPLOYMENT_GUIDE_FREE.md) para el tutorial paso a paso de 5 minutos con Render + Vercel + UptimeRobot (sin cold-start y sin tarjeta).
+
 La aplicación está completamente preparada para despliegue en producción mediante múltiples estrategias:
 
 ### Opción 1: Render.com Blueprint (1-Click Deploy Automático)
