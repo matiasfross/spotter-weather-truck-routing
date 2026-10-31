@@ -6,11 +6,15 @@ Includes intelligent batching, in-memory caching, and robust offline fallback si
 
 import math
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from django.core.cache import cache
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+
+# Reusable HTTP session with connection pooling and keep-alive
+HTTP_SESSION = requests.Session()
 
 
 def get_weather_code_description(code: int) -> Dict[str, str]:
@@ -98,7 +102,7 @@ def _simulate_weather_point(lat: float, lon: float, dt: datetime) -> Dict[str, A
 def fetch_point_weather_timeseries(lat: float, lon: float) -> Optional[Dict[str, Any]]:
     """
     Fetch 7-day hourly weather timeseries from Open-Meteo for a given coordinate.
-    Uses caching to minimize external network requests.
+    Uses caching and persistent HTTP session to minimize network latency.
     """
     rounded_lat = round(lat, 2)
     rounded_lon = round(lon, 2)
@@ -118,7 +122,7 @@ def fetch_point_weather_timeseries(lat: float, lon: float) -> Optional[Dict[str,
     }
 
     try:
-        resp = requests.get(OPEN_METEO_URL, params=params, timeout=6)
+        resp = HTTP_SESSION.get(OPEN_METEO_URL, params=params, timeout=6)
         if resp.status_code == 200:
             data = resp.json()
             cache.set(cache_key, data, timeout=1800)  # Cache for 30 minutes
@@ -132,7 +136,7 @@ def fetch_point_weather_timeseries(lat: float, lon: float) -> Optional[Dict[str,
 def fetch_batch_weather(points: List[Dict[str, float]]) -> List[Optional[Dict[str, Any]]]:
     """
     Batch fetch weather for a list of coordinates [{'lat': ..., 'lon': ...}] using Open-Meteo batching.
-    Max 50 points per batch.
+    Uses chunk_size=50 (Open-Meteo maximum) and ThreadPoolExecutor for concurrent batch queries.
     """
     if not points:
         return []
@@ -157,13 +161,16 @@ def fetch_batch_weather(points: List[Dict[str, float]]) -> List[Optional[Dict[st
     if not missing_indices:
         return results
 
-    # Chunk requests into groups of 30
-    chunk_size = 30
+    chunk_size = 50
+    chunks_info = []
     for c_start in range(0, len(missing_indices), chunk_size):
-        chunk_sub_idx = missing_indices[c_start : c_start + chunk_size]
+        sub_idx = missing_indices[c_start : c_start + chunk_size]
         sub_lats = lats[c_start : c_start + chunk_size]
         sub_lons = lons[c_start : c_start + chunk_size]
+        chunks_info.append((sub_idx, sub_lats, sub_lons))
 
+    def _execute_chunk_query(chunk_tuple):
+        sub_idx, sub_lats, sub_lons = chunk_tuple
         params = {
             "latitude": ",".join(sub_lats),
             "longitude": ",".join(sub_lons),
@@ -173,32 +180,46 @@ def fetch_batch_weather(points: List[Dict[str, float]]) -> List[Optional[Dict[st
             "temperature_unit": "fahrenheit",
             "timezone": "UTC",
         }
-
         try:
-            resp = requests.get(OPEN_METEO_URL, params=params, timeout=8)
+            resp = HTTP_SESSION.get(OPEN_METEO_URL, params=params, timeout=8)
             if resp.status_code == 200:
                 data = resp.json()
-                if isinstance(data, list):
-                    for idx_in_chunk, item in enumerate(data):
-                        orig_idx = chunk_sub_idx[idx_in_chunk]
-                        results[orig_idx] = item
-                        cache.set(f"weather_ts_{sub_lats[idx_in_chunk]}_{sub_lons[idx_in_chunk]}", item, timeout=1800)
-                elif isinstance(data, dict):
-                    # Single item returned
-                    orig_idx = chunk_sub_idx[0]
-                    results[orig_idx] = data
-                    cache.set(f"weather_ts_{sub_lats[0]}_{sub_lons[0]}", data, timeout=1800)
+                items = data if isinstance(data, list) else [data]
+                return (sub_idx, sub_lats, sub_lons, items)
         except Exception:
             pass
+        return (sub_idx, sub_lats, sub_lons, [])
+
+    if len(chunks_info) == 1:
+        chunk_outputs = [_execute_chunk_query(chunks_info[0])]
+    else:
+        with ThreadPoolExecutor(max_workers=min(4, len(chunks_info))) as executor:
+            chunk_outputs = list(executor.map(_execute_chunk_query, chunks_info))
+
+    for sub_idx, sub_lats, sub_lons, items in chunk_outputs:
+        for idx_in_chunk, item in enumerate(items):
+            if idx_in_chunk < len(sub_idx):
+                orig_idx = sub_idx[idx_in_chunk]
+                results[orig_idx] = item
+                cache.set(f"weather_ts_{sub_lats[idx_in_chunk]}_{sub_lons[idx_in_chunk]}", item, timeout=1800)
 
     return results
 
 
-def get_checkpoint_weather(lat: float, lon: float, eta_dt: datetime) -> Dict[str, Any]:
+def get_checkpoint_weather(
+    lat: float,
+    lon: float,
+    eta_dt: datetime,
+    ts_data: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
     Get weather at a specific coordinate and specific ETA timestamp.
+    Accepts pre-fetched in-memory ts_data or queries cache/API.
+    Uses O(1) timestamp hash mapping for instant lookup.
     """
-    ts_data = fetch_point_weather_timeseries(lat, lon)
+    if ts_data is None:
+        ts_data = fetch_point_weather_timeseries(lat, lon)
+
     if not ts_data or "hourly" not in ts_data:
         # Fallback to physical simulation
         return _simulate_weather_point(lat, lon, eta_dt)
@@ -208,15 +229,20 @@ def get_checkpoint_weather(lat: float, lon: float, eta_dt: datetime) -> Dict[str
     if not times:
         return _simulate_weather_point(lat, lon, eta_dt)
 
-    # Format target time as 'YYYY-MM-DDTHH:00'
+    # O(1) pre-indexed timestamp map
+    time_map = ts_data.get("_time_map")
+    if time_map is None:
+        time_map = {t: i for i, t in enumerate(times)}
+        ts_data["_time_map"] = time_map
+
     target_str = eta_dt.strftime("%Y-%m-%dT%H:00")
-    best_idx = 0
-    if target_str in times:
-        best_idx = times.index(target_str)
-    else:
-        # Find closest hour
+    best_idx = time_map.get(target_str)
+
+    if best_idx is None:
+        # Fallback to closest hour if exact hour string not found
         min_diff = float("inf")
         target_ts = eta_dt.replace(tzinfo=timezone.utc).timestamp()
+        best_idx = 0
         for idx, t_str in enumerate(times):
             try:
                 t_dt = datetime.fromisoformat(t_str).replace(tzinfo=timezone.utc)

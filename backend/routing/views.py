@@ -4,6 +4,7 @@ API Views for Weather-Aware Truck Routing.
 
 import re
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from django.http import HttpResponse
 from django.conf import settings
@@ -102,16 +103,19 @@ class CalculateRoutesAPIView(APIView):
         load_weight = data.get("load_weight_lbs", 35000.0)
         sampling_miles = float(data.get("sampling_miles", 25))
 
-        # Geocode origin
-        origin_loc = parse_or_geocode_location(origin_query)
+        # Geocode origin & destination in parallel
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            fut_orig = executor.submit(parse_or_geocode_location, origin_query)
+            fut_dest = executor.submit(parse_or_geocode_location, dest_query)
+            origin_loc = fut_orig.result()
+            dest_loc = fut_dest.result()
+
         if not origin_loc:
             return Response(
                 {"error": f"Could not locate origin: '{origin_query}'. Please enter a valid city or 'lat,lon'."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Geocode destination
-        dest_loc = parse_or_geocode_location(dest_query)
         if not dest_loc:
             return Response(
                 {"error": f"Could not locate destination: '{dest_query}'. Please enter a valid city or 'lat,lon'."},

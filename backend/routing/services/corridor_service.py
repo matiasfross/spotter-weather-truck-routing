@@ -89,14 +89,15 @@ def build_corridor_48h_forecast(
 
         hourly = ts_data.get("hourly", {}) if ts_data else {}
         times = hourly.get("time", [])
+        time_map = {t: i for i, t in enumerate(times)} if times else {}
 
         timeline = []
         for hour_offset in range(0, 49):  # 0 to 48 hours
             target_dt = departure_time + timedelta(hours=hour_offset)
             target_str = target_dt.strftime("%Y-%m-%dT%H:00")
+            h_idx = time_map.get(target_str)
 
-            if times and target_str in times:
-                h_idx = times.index(target_str)
+            if h_idx is not None:
                 wind_mph = float(hourly.get("wind_speed_10m", [0.0])[h_idx] or 0.0)
                 rain_in = float(hourly.get("rain", hourly.get("precipitation", [0.0]))[h_idx] or 0.0)
                 snow_in = float(hourly.get("snowfall", [0.0])[h_idx] or 0.0)

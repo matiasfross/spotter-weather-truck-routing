@@ -35,9 +35,13 @@ def enrich_routes_with_weather_and_risk(
                 seen.add(k)
                 all_points.append({"lat": cp["lat"], "lon": cp["lon"]})
 
-    # Warm cache with batch request
+    # Warm cache and populate in-memory map with batch request
+    ts_map = {}
     if all_points:
-        fetch_batch_weather(all_points)
+        batch_results = fetch_batch_weather(all_points)
+        for pt, ts in zip(all_points, batch_results):
+            if ts:
+                ts_map[(round(pt["lat"], 2), round(pt["lon"], 2))] = ts
 
     for route in routes:
         checkpoints = route.get("checkpoints", [])
@@ -59,7 +63,9 @@ def enrich_routes_with_weather_and_risk(
 
         for cp in checkpoints:
             eta_dt = cp.get("_eta_dt")
-            weather = get_checkpoint_weather(cp["lat"], cp["lon"], eta_dt)
+            coord_key = (round(cp["lat"], 2), round(cp["lon"], 2))
+            cp_ts = ts_map.get(coord_key)
+            weather = get_checkpoint_weather(cp["lat"], cp["lon"], eta_dt, ts_data=cp_ts)
             risk = evaluate_checkpoint_risk(
                 wind_mph=weather["wind_speed_mph"],
                 rain_in_hr=weather["rain_in_hr"],
