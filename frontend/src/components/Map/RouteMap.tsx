@@ -285,7 +285,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     }
   }, [routes, selectedRouteId, origin, destination, onSelectRoute]);
 
-  // Update Checkpoints
+  // Update Checkpoints (dynamically linked to timelapse hour and place per PDF Risk Rules)
   useEffect(() => {
     const cpGroup = checkpointsLayerGroupRef.current;
     if (!cpGroup) return;
@@ -297,22 +297,78 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     const activeRoute = routes.find((r) => r.id === selectedRouteId);
     if (!activeRoute || !activeRoute.checkpoints) return;
 
-    activeRoute.checkpoints.forEach((cp) => {
-      const risk = cp.risk;
-      const weather = cp.weather;
-      const color = getRiskColor(risk.overall_risk);
-      const isNoTravel = risk.is_no_travel;
-      const isSevere = risk.overall_risk === 'SEVERE';
+    const lowerHour = Math.min(48, Math.max(0, Math.floor(forecastHourOffset)));
+    const upperHour = Math.min(48, Math.max(0, Math.ceil(forecastHourOffset)));
+    const frac = forecastHourOffset - lowerHour;
 
-      const radius = isNoTravel ? 11 : isSevere ? 9.5 : 8;
+    const hrs = Math.floor(forecastHourOffset);
+    const mins = Math.round((forecastHourOffset - hrs) * 60);
+    const hourLabel = mins > 0 ? `+${hrs}h ${mins}m` : `+${hrs}h`;
+
+    activeRoute.checkpoints.forEach((cp) => {
+      // Find matching corridor point by proximity
+      const matchingPt = corridorPoints?.find(
+        (p) => Math.abs(p.lat - cp.lat) < 0.04 && Math.abs(p.lon - cp.lon) < 0.04
+      );
+
+      let effectiveWeather = cp.weather;
+      let effectiveColor = getRiskColor(cp.risk.overall_risk);
+      let effectiveLabel = cp.risk.overall_risk_label;
+      let effectiveReasons = cp.risk.hazard_reasons || [];
+      let effectiveScore = cp.risk.overall_risk_score;
+
+      if (matchingPt && matchingPt.timeline) {
+        const lowerTp = matchingPt.timeline.find((t) => t.hour_offset === lowerHour) || matchingPt.timeline[0];
+        const upperTp = matchingPt.timeline.find((t) => t.hour_offset === upperHour) || lowerTp;
+
+        if (lowerTp) {
+          const interpWind = lowerHour !== upperHour && upperTp
+            ? lowerTp.wind_mph * (1 - frac) + upperTp.wind_mph * frac
+            : lowerTp.wind_mph;
+          const interpRain = lowerHour !== upperHour && upperTp
+            ? lowerTp.rain_in_hr * (1 - frac) + upperTp.rain_in_hr * frac
+            : lowerTp.rain_in_hr;
+          const interpSnow = lowerHour !== upperHour && upperTp
+            ? lowerTp.snow_in_hr * (1 - frac) + upperTp.snow_in_hr * frac
+            : lowerTp.snow_in_hr;
+
+          const hourEval = classifyConditionPerPdf(
+            activeMetric,
+            {
+              wind_mph: interpWind,
+              rain_in_hr: interpRain,
+              snow_in_hr: interpSnow,
+              risk_score: Math.max(lowerTp.risk_score, upperTp?.risk_score || 1),
+            },
+            loadWeightLbs
+          );
+
+          effectiveScore = hourEval.score;
+          effectiveColor = hourEval.color;
+          effectiveLabel = hourEval.level;
+          effectiveReasons = hourEval.reasons;
+          effectiveWeather = {
+            ...cp.weather,
+            wind_speed_mph: Math.round(interpWind * 10) / 10,
+            rain_in_hr: Math.round(interpRain * 100) / 100,
+            snow_in_hr: Math.round(interpSnow * 100) / 100,
+          };
+        }
+      }
+
+      const isNoTravel = effectiveScore >= 5;
+      const isSevere = effectiveScore === 4;
+      const isHazard = effectiveScore > 1;
+
+      const radius = isNoTravel ? 11 : isSevere ? 9.5 : isHazard ? 8.5 : 7.5;
 
       const marker = L.circleMarker([cp.lat, cp.lon], {
         pane: 'checkpointsPane',
         className: 'checkpoint-marker-interactive',
         radius: radius,
-        fillColor: color,
+        fillColor: effectiveColor,
         color: '#ffffff',
-        weight: 2.5,
+        weight: isHazard ? 2.5 : 1.8,
         opacity: 1,
         fillOpacity: 0.95,
       });
@@ -328,56 +384,62 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         <div class="p-1 space-y-2 text-xs">
           <div class="flex items-center justify-between border-b border-slate-700/80 pb-1.5">
             <span class="font-bold text-slate-100 font-mono">Mile ${cp.distance_from_origin_miles.toFixed(1)}</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" style="background-color: ${color}25; color: ${color}; border: 1px solid ${color}60">
-              ${risk.overall_risk_label}
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" style="background-color: ${effectiveColor}25; color: ${effectiveColor}; border: 1px solid ${effectiveColor}60">
+              ${effectiveLabel} (${hourLabel})
             </span>
           </div>
 
-          <div class="space-y-1 font-mono text-[11px]">
-            <div class="flex justify-between text-slate-300">
-              <span>ETA:</span>
-              <strong class="text-white">${cp.eta_formatted}</strong>
-            </div>
-            <div class="flex justify-between text-slate-300">
-              <span>Conditions:</span>
-              <span class="text-sky-300">${weather.description} (${weather.temperature_f}°F)</span>
+          <!-- Conditions at Projected Hour -->
+          <div class="bg-slate-950/70 p-2 rounded-lg border border-slate-800 space-y-1 font-mono text-[11px]">
+            <div class="flex justify-between text-slate-400 text-[10px] uppercase font-bold">
+              <span>At Projected Hour (${hourLabel}):</span>
             </div>
             <div class="flex justify-between text-slate-300">
               <span>Wind Speed:</span>
-              <span class="font-bold ${weather.wind_speed_mph >= 35 ? 'text-orange-400' : 'text-white'}">
-                ${weather.wind_speed_mph} mph (${risk.wind.risk_label})
+              <span class="font-bold ${effectiveWeather.wind_speed_mph >= 35 ? 'text-orange-400' : 'text-white'}">
+                ${effectiveWeather.wind_speed_mph} mph
               </span>
             </div>
             <div class="flex justify-between text-slate-300">
               <span>Precip / Rain:</span>
-              <span class="${weather.rain_in_hr >= 0.25 ? 'text-blue-400 font-bold' : 'text-slate-300'}">
-                ${weather.rain_in_hr} in/hr (${risk.rain.risk_label})
+              <span class="${effectiveWeather.rain_in_hr >= 0.25 ? 'text-blue-400 font-bold' : 'text-slate-300'}">
+                ${effectiveWeather.rain_in_hr} in/hr
               </span>
             </div>
             ${
-              weather.snow_in_hr > 0
+              effectiveWeather.snow_in_hr > 0
                 ? `<div class="flex justify-between text-slate-300">
                     <span>Snowfall:</span>
-                    <span class="text-cyan-300 font-bold">${weather.snow_in_hr} in/hr (${risk.snow.risk_label})</span>
+                    <span class="text-cyan-300 font-bold">${effectiveWeather.snow_in_hr} in/hr</span>
                    </div>`
                 : ''
             }
           </div>
 
+          <!-- PDF Hazard Rules triggered at this hour & place -->
           ${
-            risk.hazard_reasons && risk.hazard_reasons.length > 0
+            effectiveReasons.length > 0
               ? `<div class="pt-1.5 border-t border-slate-800 text-[10px] text-amber-300 bg-amber-500/10 p-1.5 rounded space-y-1">
-                  ${risk.hazard_reasons.map((r) => `<div>• ${r}</div>`).join('')}
+                  <div class="font-bold text-amber-400 uppercase tracking-wider text-[9px]">PDF Risk Rules at ${hourLabel}:</div>
+                  ${effectiveReasons.map((r) => `<div>• ${r}</div>`).join('')}
                  </div>`
-              : ''
+              : `<div class="text-[10px] text-emerald-400 font-medium">✓ Normal conditions per PDF rules (&lt;25 mph wind, &lt;0.10 in/hr rain)</div>`
           }
+
+          <!-- Scheduled Truck Arrival Details -->
+          <div class="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span>Arrival ETA: <strong class="text-white">${cp.eta_formatted}</strong></span>
+            <span class="px-1.5 py-0.2 rounded font-bold" style="color: ${getRiskColor(cp.risk.overall_risk)}">
+              ETA Risk: ${cp.risk.overall_risk_label}
+            </span>
+          </div>
         </div>
       `;
 
       marker.bindPopup(popupHtml, { maxWidth: 300 });
       marker.addTo(cpGroup);
     });
-  }, [routes, selectedRouteId, showCheckpoints, onSelectHourOffset]);
+  }, [routes, selectedRouteId, showCheckpoints, forecastHourOffset, corridorPoints, loadWeightLbs, activeMetric, onSelectHourOffset]);
 
   // Update Timelapse Vehicle Position & Progress Line on Active Route
   useEffect(() => {
@@ -636,6 +698,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         color: windColor,
         description: windDesc,
         intensity: windScore <= 1 ? 0.0 : windScore === 2 ? 0.35 : windScore === 3 ? 0.65 : windScore === 4 ? 0.85 : 1.0,
+        reasons: windScore > 1 ? [`Wind: ${windDesc}`] : [],
       };
     }
     if (metric === 'rain') {
@@ -645,6 +708,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         color: rainColor,
         description: rainDesc,
         intensity: rainScore <= 1 ? 0.0 : rainScore === 2 ? 0.35 : rainScore === 3 ? 0.65 : rainScore === 4 ? 0.85 : 1.0,
+        reasons: rainScore > 1 ? [`Rain: ${rainDesc}`] : [],
       };
     }
     if (metric === 'snow') {
@@ -654,10 +718,11 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         color: snowColor,
         description: snowDesc,
         intensity: snowScore <= 1 ? 0.0 : snowScore === 2 ? 0.35 : snowScore === 3 ? 0.65 : snowScore === 4 ? 0.85 : 1.0,
+        reasons: snowScore > 1 ? [`Snow: ${snowDesc}`] : [],
       };
     }
 
-    // Default: Overall Composite Truck Risk = max of wind, rain, snow
+    // Default: Overall Composite Truck Risk = max of all hazards (wind, rain, snow, load rules)
     const maxScore = Math.max(windScore, rainScore, snowScore, timelinePoint.risk_score || 1);
     const overallColor =
       maxScore >= 5 ? '#7f1d1d' :
@@ -670,12 +735,18 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       maxScore === 3 ? 'HIGH' :
       maxScore === 2 ? 'MODERATE' : 'LOW';
 
+    const allReasons: string[] = [];
+    if (windScore > 1) allReasons.push(`Wind: ${windDesc}`);
+    if (rainScore > 1) allReasons.push(`Rain: ${rainDesc}`);
+    if (snowScore > 1) allReasons.push(`Snow: ${snowDesc}`);
+
     return {
       level: overallLevel,
       score: maxScore,
       color: overallColor,
-      description: `Composite: ${overallLevel}`,
+      description: allReasons.length > 0 ? allReasons.join(' • ') : 'Normal conditions (< 25 mph wind, < 0.10 in/hr rain)',
       intensity: maxScore <= 1 ? 0.0 : maxScore === 2 ? 0.35 : maxScore === 3 ? 0.65 : maxScore === 4 ? 0.85 : 1.0,
+      reasons: allReasons,
     };
   };
 

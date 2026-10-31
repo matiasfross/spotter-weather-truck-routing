@@ -93,6 +93,7 @@ export interface CorridorTimelinePoint {
   risk_level: RiskLevel;
   color: string;
   intensity: number;
+  hazard_reasons?: string[];
 }
 
 export interface CorridorPoint {

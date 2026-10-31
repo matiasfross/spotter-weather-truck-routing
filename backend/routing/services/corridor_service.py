@@ -11,10 +11,10 @@ from routing.services.risk_service import evaluate_checkpoint_risk
 from routing.services.weather_service import fetch_batch_weather, _simulate_weather_point
 
 
-def generate_corridor_mesh(routes: List[Dict[str, Any]], max_points: int = 35) -> List[Dict[str, Any]]:
+def generate_corridor_mesh(routes: List[Dict[str, Any]], max_points: int = 80) -> List[Dict[str, Any]]:
     """
-    Extract coordinates strictly along the routes themselves (no lateral buffer offsets).
-    Ensures 100% of weather forecast sampling is on the physical highway road.
+    Extract coordinates strictly along the routes covering 100% of route checkpoints.
+    Ensures every single location along the highway is evaluated in the 0-48h forecast.
     """
     sampled_coords = []
     seen = set()
@@ -24,9 +24,8 @@ def generate_corridor_mesh(routes: List[Dict[str, Any]], max_points: int = 35) -
         cps = r.get("checkpoints", [])
         if not cps:
             continue
-        step = max(1, len(cps) // 12)
-        for i in range(0, len(cps), step):
-            pt = cps[i]
+        # Sample all checkpoints along the route
+        for pt in cps:
             coord_key = (round(pt["lat"], 3), round(pt["lon"], 3))
             if coord_key not in seen:
                 seen.add(coord_key)
@@ -52,7 +51,7 @@ def build_corridor_48h_forecast(
     Build 48-hour hourly timeline for each corridor point strictly along the highway routes.
     Batches API requests for instant response.
     """
-    grid = generate_corridor_mesh(routes, max_points=35)
+    grid = generate_corridor_mesh(routes, max_points=80)
     if not grid:
         return []
 
@@ -115,6 +114,7 @@ def build_corridor_48h_forecast(
                 "risk_level": risk["overall_risk"],
                 "color": risk["color"],
                 "intensity": round(intensity, 2),
+                "hazard_reasons": risk.get("hazard_reasons", []),
             })
 
         corridor_data.append({
