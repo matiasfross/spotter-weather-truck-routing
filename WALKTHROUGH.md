@@ -89,11 +89,11 @@ This document provides a scene-by-scene script, demonstration plan, and talking 
 ---
 
 ### Scene 5: Test Suite, Docker & Production Readiness (7:00 – 8:30)
-**Visual:** Terminal showing `pytest` running with 21 passed tests, and `docker-compose.yml`.
+**Visual:** Terminal showing `pytest` running with 26 passed tests, and `docker-compose.yml`.
 - **Presenter:**
   > *"Code quality and testability are first-class citizens in this project.*
   >
-  > *Running `pytest` executes 21 automated unit and integration tests covering:*
+  > *Running `pytest` executes 26 automated unit and integration tests covering:*
   > - *Every threshold boundary for wind, rain, and snow*
   > - *All three load weight rules and escalations*
   > - *Great-circle geodesic distance calculation and sampling at 10, 25, 50 miles*

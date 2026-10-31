@@ -24,21 +24,20 @@ interface RouteInputFormProps {
   isLoading: boolean;
 }
 
+const getDefaultDateTime = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + 10);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 export const RouteInputForm: React.FC<RouteInputFormProps> = ({
   onCalculate,
   isLoading,
 }) => {
   const [origin, setOrigin] = useState('Chicago, IL');
   const [destination, setDestination] = useState('Denver, CO');
-  
-  const getDefaultDateTime = () => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + 10);
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-
-  const [departureTime, setDepartureTime] = useState(getDefaultDateTime());
+  const [departureTime, setDepartureTime] = useState(getDefaultDateTime);
   const [loadWeight, setLoadWeight] = useState<number>(42000);
   const [weightInputStr, setWeightInputStr] = useState<string>('42000');
   const [samplingMiles, setSamplingMiles] = useState<10 | 25 | 50>(25);

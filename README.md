@@ -6,7 +6,7 @@
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg)](https://tailwindcss.com/)
 [![Leaflet](https://img.shields.io/badge/Leaflet-1.9-10b981.svg)](https://leafletjs.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose%20Ready-2496ed.svg)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/Tests-21%20Passed-success.svg)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/Tests-26%20Passed-success.svg)](https://docs.pytest.org/)
 
 > **Full Stack Developer Assessment** — Weather-Aware Truck Routing web application built with **React + TypeScript** and **Django REST Framework**. Helps commercial truck drivers and logistics dispatchers choose the safest and fastest route based on real-time weather forecasts, truck cargo weight, and cumulative travel times.
 
@@ -17,9 +17,10 @@
 2. [Specification Alignment & Features](#specification-alignment--features)
 3. [Risk & Recommendation Rules](#risk--recommendation-rules)
 4. [Quick Start (Docker & Local)](#quick-start)
-5. [API Reference](#api-reference)
-6. [Automated Test Suite](#automated-test-suite)
-7. [Loom Video Walkthrough Guide](#loom-video-walkthrough-guide)
+5. [Cloud Deployment Guide (Producción)](#cloud-deployment-guide)
+6. [API Reference](#api-reference)
+7. [Automated Test Suite](#automated-test-suite)
+8. [Loom Video Walkthrough Guide](#loom-video-walkthrough-guide)
 
 ---
 
@@ -145,6 +146,49 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
+## Cloud Deployment Guide
+
+La aplicación está completamente preparada para despliegue en producción mediante múltiples estrategias:
+
+### Opción 1: Render.com Blueprint (1-Click Deploy Automático)
+El repositorio incluye el archivo [`render.yaml`](render.yaml) para desplegar el backend Django (Python + Gunicorn) y el frontend React (Static Site con reescritura de rutas) de forma coordinada:
+1. Conecta tu repositorio de GitHub en [Render Dashboard](https://dashboard.render.com/).
+2. Selecciona **Blueprints** -> **New Blueprint Instance**.
+3. Selecciona tu repositorio: Render detectará automáticamente `render.yaml` y configurará ambos servicios.
+4. El backend se levantará con Gunicorn y WhiteNoise en `/api/` y el frontend se conectará automáticamente.
+
+### Opción 2: Render o Railway (Servicios Individuales)
+- **Backend (Python Web Service):**
+  - **Root Directory:** `backend`
+  - **Build Command:** `pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput`
+  - **Start Command:** `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120` (o usa el [`backend/Procfile`](backend/Procfile))
+  - **Health Check Path:** `/api/health/`
+  - **Variables de Entorno:**
+    - `DEBUG=False`
+    - `DJANGO_SECRET_KEY=tu-clave-secreta-de-produccion`
+- **Frontend (Static Site / Vercel / Netlify):**
+  - **Root Directory:** `frontend`
+  - **Build Command:** `npm ci && npm run build`
+  - **Publish Directory:** `dist`
+  - **Variable de Entorno:** `VITE_API_URL=https://tu-backend-en-render.onrender.com/api`
+
+### Opción 3: Docker Compose en Servidor Cloud (AWS EC2 / DigitalOcean / Hetzner)
+Para levantar el stack completo en cualquier servidor Linux con Docker instalado:
+```bash
+docker-compose up -d --build
+```
+El reverse proxy Nginx del frontend (`:3000`) redirigirá internamente las llamadas a `/api/` hacia el contenedor del backend Django (`:8000`), sin requerir configuración adicional de CORS.
+
+### Publicación en GitHub
+Para subir el proyecto a tu repositorio de GitHub para la entrega:
+```bash
+git remote add origin https://github.com/<tu-usuario>/<tu-repo>.git
+git branch -M main
+git push -u origin main
+```
+
+---
+
 ## API Reference
 
 ### 1. `POST /api/routes/calculate/`
@@ -189,7 +233,7 @@ Health check endpoint returning system status and version.
 
 A comprehensive test suite is built into the backend using `pytest` and `pytest-django`.
 
-To execute all 21 unit and integration tests:
+To execute all 26 unit and integration tests:
 ```bash
 cd backend
 .venv/Scripts/python.exe -m pytest -v
@@ -243,18 +287,19 @@ proyectito/
 │   │   │   ├── corridor_service.py # 48h spatial corridor heatmap grid
 │   │   │   ├── geocoding_service.py# Nominatim & freight hubs cache
 │   │   │   └── recommendation_service.py # 4-tier priority ranking
-│   │   ├── tests/                  # 21 comprehensive unit & integration tests
+│   │   ├── tests/                  # 26 comprehensive unit & integration tests
 │   │   ├── views.py                # REST API endpoints
 │   │   ├── serializers.py          # Request validation serializers
 │   │   └── urls.py                 # URL routing
-│   ├── requirements.txt            # Python dependencies
-│   ├── Dockerfile                  # Production container definition
+│   ├── requirements.txt            # Python dependencies (gunicorn, whitenoise, django)
+│   ├── Dockerfile                  # Production container definition (Gunicorn WSGI)
+│   ├── Procfile                    # Render / Railway / Heroku deployment process
 │   └── pytest.ini                  # Pytest configuration
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── Navbar.tsx          # Brand header & rules modal trigger
-│   │   │   ├── RouteInputForm.tsx  # Origin/dest, load slider, presets
+│   │   │   ├── RouteInputForm.tsx  # Origin/dest, departure, load slider, 10/25/50mi selector
 │   │   │   ├── RouteCard.tsx       # Route summary card & risk bars
 │   │   │   ├── RouteComparison.tsx # Side-by-side comparison & recommendation banner
 │   │   │   ├── ForecastSlider.tsx  # 0-48h slider with play/pause radar
