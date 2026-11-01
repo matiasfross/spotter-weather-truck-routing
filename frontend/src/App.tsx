@@ -83,24 +83,24 @@ export const App: React.FC = () => {
             </div>
             <div className="max-w-xl mx-auto space-y-2">
               <h3 className="text-lg font-bold text-white">
-                Sistema Listo para Análisis de Rutas Comerciales
+                Commercial Freight Route Analysis Ready
               </h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Selecciona uno de los escenarios de prueba o ingresa el origen, destino y peso de carga arriba. Luego presiona <strong className="text-sky-400">"Buscar y Calcular 3 Rutas Seguras"</strong> para iniciar la evaluación meteorológica y de riesgos.
+                Enter your origin, destination, departure time, and cargo weight above. Then click <strong className="text-sky-400">"Search & Calculate 3 Safe Routes"</strong> to initiate the predictive weather and risk evaluation.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto pt-2 text-left">
               <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
-                <span className="font-bold text-slate-200 block mb-1">🚚 Comercial HGV</span>
-                <span className="text-slate-400">3 rutas garantizadas optimizadas para camiones de carga pesada.</span>
+                <span className="font-bold text-slate-200 block mb-1">🚚 Commercial HGV Corridors</span>
+                <span className="text-slate-400">3 distinct highway routes optimized for heavy commercial freight.</span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
-                <span className="font-bold text-slate-200 block mb-1">🌦️ Clima Predictivo 48h</span>
-                <span className="text-slate-400">Muestreo dinámico cada 10/25/50 millas según la ETA proyectada.</span>
+                <span className="font-bold text-slate-200 block mb-1">🌦️ 48-Hour Predictive Weather</span>
+                <span className="text-slate-400">Dynamic geodesic sampling every 10/25/50 miles based on projected vehicle ETA.</span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
-                <span className="font-bold text-slate-200 block mb-1">⚠️ Reglas de Seguridad</span>
-                <span className="text-slate-400">Matriz de mitigación de viento, lluvia torrencial y nieve según el peso.</span>
+                <span className="font-bold text-slate-200 block mb-1">⚠️ Safety & Rollover Rules</span>
+                <span className="text-slate-400">Multi-hazard mitigation matrix factoring in wind gusts, heavy rain, snow, and cargo weight.</span>
               </div>
             </div>
           </div>

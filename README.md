@@ -17,7 +17,7 @@
 2. [Specification Alignment & Features](#specification-alignment--features)
 3. [Risk & Recommendation Rules](#risk--recommendation-rules)
 4. [Quick Start (Docker & Local)](#quick-start)
-5. [Cloud Deployment Guide (Producción)](#cloud-deployment-guide)
+5. [Cloud Deployment Guide](#cloud-deployment-guide)
 6. [API Reference](#api-reference)
 7. [Automated Test Suite](#automated-test-suite)
 8. [Loom Video Walkthrough Guide](#loom-video-walkthrough-guide)
@@ -148,43 +148,43 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Cloud Deployment Guide
 
-> 📖 **Guía Rápida de Despliegue 100% Gratuito y 24/7 Activo ($0 USD):** Consulta [`DEPLOYMENT_GUIDE_FREE.md`](DEPLOYMENT_GUIDE_FREE.md) para el tutorial paso a paso de 5 minutos con Render + Vercel + UptimeRobot (sin cold-start y sin tarjeta).
+> 📖 **Quick 100% Free & 24/7 Always-On Deployment Guide ($0 USD):** See [`DEPLOYMENT_GUIDE_FREE.md`](DEPLOYMENT_GUIDE_FREE.md) for the 5-minute step-by-step setup using Render + Vercel + UptimeRobot (no credit card required, zero cold-start delay).
 
-La aplicación está completamente preparada para despliegue en producción mediante múltiples estrategias:
+The application is fully prepared for production deployment across multiple strategies:
 
-### Opción 1: Render.com Blueprint (1-Click Deploy Automático)
-El repositorio incluye el archivo [`render.yaml`](render.yaml) para desplegar el backend Django (Python + Gunicorn) y el frontend React (Static Site con reescritura de rutas) de forma coordinada:
-1. Conecta tu repositorio de GitHub en [Render Dashboard](https://dashboard.render.com/).
-2. Selecciona **Blueprints** -> **New Blueprint Instance**.
-3. Selecciona tu repositorio: Render detectará automáticamente `render.yaml` y configurará ambos servicios.
-4. El backend se levantará con Gunicorn y WhiteNoise en `/api/` y el frontend se conectará automáticamente.
+### Option 1: Render.com Blueprint (Automated 1-Click Deploy)
+The repository includes [`render.yaml`](render.yaml) to coordinate both the Django backend (Python + Gunicorn WSGI) and React frontend (Static Site with SPA route rewrites):
+1. Connect your GitHub repository in the [Render Dashboard](https://dashboard.render.com/).
+2. Navigate to **Blueprints** -> **New Blueprint Instance**.
+3. Select your repository: Render will automatically detect `render.yaml` and configure both services.
+4. The backend runs with Gunicorn and WhiteNoise at `/api/` and the frontend connects seamlessly.
 
-### Opción 2: Render o Railway (Servicios Individuales)
+### Option 2: Render or Railway (Individual Services)
 - **Backend (Python Web Service):**
   - **Root Directory:** `backend`
   - **Build Command:** `pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput`
-  - **Start Command:** `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120` (o usa el [`backend/Procfile`](backend/Procfile))
+  - **Start Command:** `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120` (or use [`backend/Procfile`](backend/Procfile))
   - **Health Check Path:** `/api/health/`
-  - **Variables de Entorno:**
+  - **Environment Variables:**
     - `DEBUG=False`
-    - `DJANGO_SECRET_KEY=tu-clave-secreta-de-produccion`
+    - `DJANGO_SECRET_KEY=your-production-secret-key-here`
 - **Frontend (Static Site / Vercel / Netlify):**
   - **Root Directory:** `frontend`
   - **Build Command:** `npm ci && npm run build`
   - **Publish Directory:** `dist`
-  - **Variable de Entorno:** `VITE_API_URL=https://tu-backend-en-render.onrender.com/api`
+  - **Environment Variable:** `VITE_API_URL=https://your-backend-service.onrender.com/api`
 
-### Opción 3: Docker Compose en Servidor Cloud (AWS EC2 / DigitalOcean / Hetzner)
-Para levantar el stack completo en cualquier servidor Linux con Docker instalado:
+### Option 3: Docker Compose on Cloud Server (AWS EC2 / DigitalOcean / Hetzner)
+To run the complete containerized stack on any Linux host with Docker:
 ```bash
 docker-compose up -d --build
 ```
-El reverse proxy Nginx del frontend (`:3000`) redirigirá internamente las llamadas a `/api/` hacia el contenedor del backend Django (`:8000`), sin requerir configuración adicional de CORS.
+The Nginx reverse proxy on the frontend container (`:3000`) internally forwards all `/api/` calls to the Django backend container (`:8000`), with zero additional CORS configuration needed.
 
-### Publicación en GitHub
-Para subir el proyecto a tu repositorio de GitHub para la entrega:
+### Publishing to GitHub
+To push this project to your GitHub repository:
 ```bash
-git remote add origin https://github.com/<tu-usuario>/<tu-repo>.git
+git remote add origin https://github.com/<your-username>/<your-repo>.git
 git branch -M main
 git push -u origin main
 ```

@@ -26,46 +26,46 @@ PRESET_ROUTES = [
     {
         "id": "miami-tampa-severe-rain",
         "title": "Miami, FL → Tampa, FL",
-        "subtitle": "🔴 Lluvia Torrencial & NO TRAVEL (>0.75 in/hr)",
+        "subtitle": "🔴 Torrential Rain & NO TRAVEL (>0.75 in/hr)",
         "origin": "Miami, FL",
         "destination": "Tampa, FL",
         "default_weight": 35000,
         "sampling_miles": 25,
         "departure_offset_hours": 7,
-        "description": "Prueba de detención obligatoria (NO TRAVEL) por precipitación extrema (0.89 in/hr) e inundación repentina."
+        "description": "Mandatory stop (NO TRAVEL) test under extreme precipitation (0.89 in/hr) and flash flood risk."
     },
     {
         "id": "cheyenne-slc-extreme-wind",
         "title": "Cheyenne, WY → Salt Lake City, UT",
-        "subtitle": "🔴 Ráfagas 48 mph & NO TRAVEL por Peso",
+        "subtitle": "🔴 48 mph Gusts & NO TRAVEL by Weight Rule",
         "origin": "Cheyenne, WY",
         "destination": "Salt Lake City, UT",
         "default_weight": 48000,
         "sampling_miles": 25,
         "departure_offset_hours": 64,
-        "description": "Prueba de vuelco por viento cruzado en corredor I-80 con camión pesado (>30,000 lbs)."
+        "description": "Rollover crosswind test along I-80 corridor with heavy cargo (>30,000 lbs)."
     },
     {
         "id": "chicago-omaha-rain-front",
         "title": "Chicago, IL → Omaha, NE",
-        "subtitle": "🟠 Desempate de Rutas por Frente de Lluvia",
+        "subtitle": "🟠 Rain Front Route Tiebreaker",
         "origin": "Chicago, IL",
         "destination": "Omaha, NE",
         "default_weight": 38000,
         "sampling_miles": 25,
         "departure_offset_hours": 1,
-        "description": "Demuestra la selección de ruta por menores millas de alto riesgo (Tier 2)."
+        "description": "Demonstrates route preference sorting by fewest high-risk miles (Tier 2)."
     },
     {
         "id": "denver-grandjunction-rockies",
         "title": "Denver, CO → Grand Junction, CO",
-        "subtitle": "❄️ Paso de Montaña & Gran Altitud (I-70)",
+        "subtitle": "❄️ Mountain Pass & High Altitude (I-70)",
         "origin": "Denver, CO",
         "destination": "Grand Junction, CO",
         "default_weight": 42000,
         "sampling_miles": 10,
         "departure_offset_hours": 0,
-        "description": "Prueba de corredor montañoso de gran elevación (11,000+ ft) y pendientes extremas."
+        "description": "High-elevation mountain corridor test (11,000+ ft) with steep alpine terrain."
     }
 ]
 

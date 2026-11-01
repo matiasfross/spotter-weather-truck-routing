@@ -145,42 +145,42 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
     const cleanDest = destination.trim();
 
     if (!cleanOrigin) {
-      newErrors.origin = 'El origen de la ruta es obligatorio.';
+      newErrors.origin = 'Origin is required.';
     } else if (cleanOrigin.length < 2) {
-      newErrors.origin = 'El origen debe tener al menos 2 caracteres.';
+      newErrors.origin = 'Origin must be at least 2 characters.';
     }
 
     if (!cleanDest) {
-      newErrors.destination = 'El destino de la ruta es obligatorio.';
+      newErrors.destination = 'Destination is required.';
     } else if (cleanDest.length < 2) {
-      newErrors.destination = 'El destino debe tener al menos 2 caracteres.';
+      newErrors.destination = 'Destination must be at least 2 characters.';
     }
 
     if (cleanOrigin && cleanDest && cleanOrigin.toLowerCase() === cleanDest.toLowerCase()) {
-      newErrors.destination = 'El destino no puede ser igual al origen.';
+      newErrors.destination = 'Destination cannot be identical to origin.';
     }
 
     if (!departureTime) {
-      newErrors.departureTime = 'La fecha y hora de salida es obligatoria.';
+      newErrors.departureTime = 'Departure date and time are required.';
     } else {
       const depDate = new Date(departureTime).getTime();
       const now = Date.now();
       if (isNaN(depDate)) {
-        newErrors.departureTime = 'Fecha y hora de salida inválida.';
+        newErrors.departureTime = 'Invalid departure date and time.';
       } else if (depDate < now - 2 * 3600 * 1000) {
-        newErrors.departureTime = 'La fecha de salida no puede ser anterior a la hora actual.';
+        newErrors.departureTime = 'Departure date cannot be in the past.';
       } else if (depDate > now + 14 * 24 * 3600 * 1000) {
-        newErrors.departureTime = 'La salida debe estar dentro de los próximos 14 días (límite del pronóstico).';
+        newErrors.departureTime = 'Departure must be within the next 14 days (forecast limit).';
       }
     }
 
     const weightNum = Number(loadWeight);
     if (weightInputStr.trim() === '' || isNaN(weightNum)) {
-      newErrors.loadWeight = 'Ingresa el peso de la carga en libras.';
+      newErrors.loadWeight = 'Please enter cargo load weight in pounds.';
     } else if (weightNum < 0) {
-      newErrors.loadWeight = 'El peso de carga no puede ser negativo.';
+      newErrors.loadWeight = 'Cargo weight cannot be negative.';
     } else if (weightNum > 90000) {
-      newErrors.loadWeight = 'El peso máximo permitido es de 90,000 lbs (límite federal de transporte).';
+      newErrors.loadWeight = 'Maximum allowed cargo weight is 90,000 lbs (federal legal limit).';
     }
 
     setErrors(newErrors);
@@ -427,7 +427,7 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
         {Object.keys(errors).length > 0 && (
           <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center gap-2 animate-fadeIn">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>Por favor corrige los datos señalados en rojo antes de calcular las rutas.</span>
+            <span>Please correct the highlighted fields before calculating routes.</span>
           </div>
         )}
 
@@ -440,12 +440,12 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
           {isLoading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Analizando Corredores y Evaluando Seguridad...</span>
+              <span>Analyzing Corridors & Evaluating Safety...</span>
             </>
           ) : (
             <>
               <Search className="w-5 h-5" />
-              <span>Buscar y Calcular 3 Rutas Seguras</span>
+              <span>Search & Calculate 3 Safe Routes</span>
             </>
           )}
         </button>
@@ -453,7 +453,7 @@ export const RouteInputForm: React.FC<RouteInputFormProps> = ({
         {isLoading && showColdStartHint && (
           <div className="p-2.5 rounded-xl bg-sky-950/40 border border-sky-500/30 text-sky-300 text-xs flex items-center justify-center gap-2 animate-fadeIn text-center">
             <Clock className="w-3.5 h-3.5 text-sky-400 shrink-0 animate-spin" />
-            <span>Conectando con el servidor en la nube... (iniciando contenedor)</span>
+            <span>Connecting to cloud server... (waking up container)</span>
           </div>
         )}
       </form>

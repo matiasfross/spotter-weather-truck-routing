@@ -1,39 +1,39 @@
-# 🚀 Guía de Despliegue 100% Gratuito y 24/7 Activo ($0 USD)
+# 🚀 100% Free & 24/7 Always-On Cloud Deployment Guide ($0 USD)
 
-Esta guía te permite desplegar la aplicación completa en menos de 5 minutos, **sin costo ($0)**, **sin necesidad de ingresar tarjeta de crédito**, y con el backend **despierto las 24 horas del día (0 segundos de espera o cold-start)**.
-
----
-
-## 🏗️ Arquitectura de la Solución
-
-- **Frontend:** [Vercel](https://vercel.com) (Hobby Plan - $0, CDN global ultrarrápido, 0s de retraso).
-- **Backend:** [Render](https://render.com) (Free Web Service - $0, Python 3 + Gunicorn + WhiteNoise).
-- **Keep-Alive 24/7:** [UptimeRobot](https://uptimerobot.com) (Monitor gratuito - $0, ping cada 10 min a `/api/health/`).
+This guide walks you through deploying the complete application in under 5 minutes, **with $0 cost**, **no credit card required**, and with the backend **kept alive 24/7 (zero seconds cold-start delay)**.
 
 ---
 
-## Paso 1: Subir el Proyecto a GitHub (1 minuto)
+## 🏗️ Architecture Overview
 
-1. Ve a [github.com/new](https://github.com/new) y crea un nuevo repositorio público (ej: `spotter-weather-truck-routing`).
-2. En tu terminal, dentro de la carpeta `proyectito`, ejecuta:
+- **Frontend:** [Vercel](https://vercel.com) (Hobby Plan - $0, ultra-fast global CDN edge network, 0s delay).
+- **Backend:** [Render](https://render.com) (Free Web Service - $0, Python 3 + Gunicorn WSGI + WhiteNoise static compression).
+- **Keep-Alive 24/7:** [UptimeRobot](https://uptimerobot.com) (Free Monitor - $0, automated HTTP ping every 10 min to `/api/health/`).
+
+---
+
+## Step 1: Push Project to GitHub (1 minute)
+
+1. Go to [github.com/new](https://github.com/new) and create a new public repository (e.g., `spotter-weather-truck-routing`).
+2. In your terminal inside the `proyectito` folder, run:
    ```bash
-   git remote add origin https://github.com/<tu-usuario>/spotter-weather-truck-routing.git
+   git remote add origin https://github.com/<your-username>/spotter-weather-truck-routing.git
    git branch -M main
    git push -u origin main
    ```
 
 ---
 
-## Paso 2: Desplegar el Backend en Render (2 minutos)
+## Step 2: Deploy Backend on Render (2 minutes)
 
-1. Entra en [dashboard.render.com](https://dashboard.render.com/) e inicia sesión con tu cuenta de GitHub (gratis, sin tarjeta).
-2. Haz clic en **New +** ➔ **Web Service**.
-3. Selecciona tu repositorio `spotter-weather-truck-routing`.
-4. Rellena los campos con estos valores:
-   - **Name:** `spotter-truck-backend` (o el nombre que elijas)
+1. Go to [dashboard.render.com](https://dashboard.render.com/) and log in with your GitHub account (free, no credit card required).
+2. Click **New +** ➔ **Web Service**.
+3. Select your repository `spotter-weather-truck-routing`.
+4. Configure the service settings:
+   - **Name:** `spotter-truck-backend` (or your preferred name)
    - **Root Directory:** `backend`
    - **Language / Environment:** `Python 3`
-   - **Region:** `Ohio (US East)` u `Oregon (US West)`
+   - **Region:** `Ohio (US East)` or `Oregon (US West)`
    - **Branch:** `main`
    - **Build Command:**
      ```bash
@@ -43,69 +43,69 @@ Esta guía te permite desplegar la aplicación completa en menos de 5 minutos, *
      ```bash
      gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
      ```
-   - **Instance Type:** Selecciona **Free** ($0/month).
-5. Despliega la sección **Advanced** / **Environment Variables** y agrega:
+   - **Instance Type:** Select **Free** ($0/month).
+5. Open the **Advanced** / **Environment Variables** section and add:
    | Key | Value |
    |---|---|
    | `DEBUG` | `False` |
    | `DJANGO_SECRET_KEY` | `spotter-prod-secure-weather-routing-2026-key` |
-6. En **Health Check Path**, escribe: `/api/health/`.
-7. Haz clic en **Create Web Service**.
-   - En ~2 minutos tu backend estará en línea con una URL como:
+6. In **Health Check Path**, enter: `/api/health/`.
+7. Click **Create Web Service**.
+   - Within ~2 minutes your backend will be live with a URL like:
      `https://spotter-truck-backend.onrender.com`
-   - Para verificarlo, abre en tu navegador:
+   - To verify it, open in your browser:
      `https://spotter-truck-backend.onrender.com/api/health/`
-     (Debe responder: `{"status": "ok", "service": "weather-aware-truck-routing", "version": "1.0.0"}`)
+     (Should return: `{"status": "ok", "service": "weather-aware-truck-routing", "version": "1.0.0"}`)
 
 ---
 
-## Paso 3: Desplegar el Frontend en Vercel (1 minuto)
+## Step 3: Deploy Frontend on Vercel (1 minute)
 
-1. Entra en [vercel.com](https://vercel.com/) e inicia sesión con tu GitHub (gratis, sin tarjeta).
-2. Haz clic en **Add New...** ➔ **Project**.
-3. Importa el repositorio `spotter-weather-truck-routing`.
-4. Configura el proyecto:
-   - **Root Directory:** Haz clic en *Edit* y selecciona la carpeta **`frontend`**.
-   - **Framework Preset:** `Vite` (se detectará automáticamente).
-   - En **Environment Variables**, agrega:
+1. Go to [vercel.com](https://vercel.com/) and log in with your GitHub account (free, no credit card required).
+2. Click **Add New...** ➔ **Project**.
+3. Import your repository `spotter-weather-truck-routing`.
+4. Configure project settings:
+   - **Root Directory:** Click *Edit* and select the **`frontend`** folder.
+   - **Framework Preset:** `Vite` (detected automatically).
+   - In **Environment Variables**, add:
      | Name | Value |
      |---|---|
      | `VITE_API_URL` | `https://spotter-truck-backend.onrender.com/api` |
-     *(Reemplaza con la URL generada por Render en el Paso 2, agregando `/api` al final)*.
-5. Haz clic en **Deploy**.
-   - En ~40 segundos Vercel te entregará tu URL pública:
+     *(Replace with your live Render backend URL from Step 2, appending `/api` at the end)*.
+5. Click **Deploy**.
+   - Within ~40 seconds Vercel will provide your live public URL:
      `https://spotter-weather-truck-routing.vercel.app`
 
 ---
 
-## Paso 4: Eliminar el Cold-Start con UptimeRobot (1 minuto)
+## Step 4: Eliminate Cold-Start with UptimeRobot (1 minute)
 
 > [!TIP]
-> Render suspende los contenedores gratuitos tras 15 minutos de inactividad. Sin embargo, Render regala **750 horas de servidor al mes** y un mes completo tiene solo **744 horas**. Si el servidor recibe un ping cada 10 minutos, **NUNCA SE APAGA** y responde al instante todo el mes.
+> Render suspends free containers after 15 minutes of inactivity. However, Render provides **750 free compute hours per month**, while an entire calendar month has only **744 hours**. By sending a lightweight HTTP ping every 10 minutes, the container **NEVER GOES TO SLEEP** and answers requests instantaneously all month long.
 
-1. Ve a [uptimerobot.com](https://uptimerobot.com/) y crea una cuenta gratuita (con tu email o Google).
-2. Haz clic en **+ Add New Monitor**.
-3. Configura el monitor:
+1. Go to [uptimerobot.com](https://uptimerobot.com/) and create a free account (with your email or Google).
+2. Click **+ Add New Monitor**.
+3. Configure the monitor:
    - **Monitor Type:** `HTTP(s)`
    - **Friendly Name:** `Spotter Truck Backend Keep-Alive`
    - **URL (or IP):** `https://spotter-truck-backend.onrender.com/api/health/`
-   - **Monitoring Interval:** `10 minutes` (o 5 minutes).
-4. Haz clic en **Create Monitor**.
+   - **Monitoring Interval:** `10 minutes` (or 5 minutes).
+4. Click **Create Monitor**.
 
-🎉 **¡Listo!** A partir de este momento:
-- Tu backend recibirá un ping liviano cada 10 minutos.
-- Estará activo las **24 horas del día, los 7 días de la semana**.
-- Cuando el evaluador abra tu enlace de Vercel, el cálculo de rutas responderá **de inmediato en menos de 1 segundo**, exactamente igual que un plan pago de $50/mes.
+🎉 **You are all set!**
+- Your backend receives a lightweight ping every 10 minutes.
+- It stays active **24 hours a day, 7 days a week**.
+- When an evaluator opens your Vercel URL, route calculations respond **instantaneously in under 1 second**, identical to a $50/month paid server plan.
 
 ---
 
-## Verificación Final de la Entrega
+## Final Verification Checklist
 
-1. Abre tu URL de Vercel en modo incógnito.
-2. Ingresa `Chicago, IL` a `Denver, CO` con `42,000 lbs`.
-3. Presiona **"Buscar y Calcular 3 Rutas Seguras"**.
-4. Verifica que:
-   - Se calculen las 3 rutas sobre autopistas reales.
-   - Los checkpoints aparezcan en verde/ámbar/rojo con su riesgo ETA.
-   - El slider de pronóstico 0–48h anime el heatmap fluidamente en pasos de 15 min.
-   - La tarjeta de recomendación justifique la ruta ganadora.
+1. Open your public Vercel URL in an incognito browser window.
+2. Enter `Chicago, IL` to `Denver, CO` with `42,000 lbs`.
+3. Click **"Search & Calculate 3 Safe Routes"**.
+4. Verify that:
+   - 3 routes are generated along physical highways.
+   - Checkpoint markers display green/amber/red risk according to arrival ETA.
+   - The 0–48h forecast slider animates the heatmap smoothly in 15-minute steps.
+   - The recommendation card clearly justifies the winning route based on the 4-tier preference hierarchy.
