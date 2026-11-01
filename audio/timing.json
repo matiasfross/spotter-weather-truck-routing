@@ -1,0 +1,27 @@
+{
+  "1": {
+    "name": "scene1_intro_and_rules",
+    "path": "C:\\proyectoRouting\\proyectito\\audio\\scene1_intro_and_rules.mp3",
+    "duration": 94.368
+  },
+  "2": {
+    "name": "scene2_inputs_and_heavy_load",
+    "path": "C:\\proyectoRouting\\proyectito\\audio\\scene2_inputs_and_heavy_load.mp3",
+    "duration": 48.888
+  },
+  "3": {
+    "name": "scene3_routes_and_recommendation",
+    "path": "C:\\proyectoRouting\\proyectito\\audio\\scene3_routes_and_recommendation.mp3",
+    "duration": 60.696
+  },
+  "4": {
+    "name": "scene4_map_timelapse_radar",
+    "path": "C:\\proyectoRouting\\proyectito\\audio\\scene4_map_timelapse_radar.mp3",
+    "duration": 89.856
+  },
+  "5": {
+    "name": "scene5_checkpoint_itinerary_closing",
+    "path": "C:\\proyectoRouting\\proyectito\\audio\\scene5_checkpoint_itinerary_closing.mp3",
+    "duration": 85.656
+  }
+}

@@ -92,7 +92,7 @@ crosswinds between 35 and 44 miles per hour
 from High to Severe,
 directly protecting the driver from dangerous rollover conditions.
 
-Now, let's click "Buscar y Calcular 3 Rutas Seguras".
+Now, let's click "Search & Calculate 3 Safe Routes".
 
 **[CLICK: Click the primary button. Wait ~1-2 seconds for routes to render.]**
 

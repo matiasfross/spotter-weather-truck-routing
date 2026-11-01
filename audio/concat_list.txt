@@ -1,0 +1,5 @@
+file 'C:/proyectoRouting/proyectito/audio/scene1_intro_and_rules.mp3'
+file 'C:/proyectoRouting/proyectito/audio/scene2_inputs_and_heavy_load.mp3'
+file 'C:/proyectoRouting/proyectito/audio/scene3_routes_and_recommendation.mp3'
+file 'C:/proyectoRouting/proyectito/audio/scene4_map_timelapse_radar.mp3'
+file 'C:/proyectoRouting/proyectito/audio/scene5_checkpoint_itinerary_closing.mp3'
