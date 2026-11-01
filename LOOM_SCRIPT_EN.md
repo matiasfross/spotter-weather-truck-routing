@@ -1,14 +1,15 @@
-# Loom Teleprompter Script (English)
+# Loom Teleprompter Script (100% Web Application)
 
-> **Estimated Time:** 6:45 – 7:15 minutes  
+> **Estimated Duration:** ~6:30 minutes  
 > **Target Pacing:** ~130 words per minute  
-> **Format:** Short lines optimized for teleprompter scrolling or reading beside the webcam.
+> **Format:** Short lines optimized for teleprompter scrolling or reading beside your webcam.  
+> **Location:** 100% inside the web browser. No external windows or code switching required.
 
 ---
 
-## SCENE 1: INTRODUCTION & ARCHITECTURE (0:00 – 1:00)
+## SCENE 1: INTRODUCTION & RISK RULES MODAL (0:00 – 1:00)
 
-**[VISUAL: App dashboard open on screen in dark mode. Camera bubble bottom-left.]**
+**[VISUAL: Spotter Web App open on screen in dark mode. Webcam bubble in lower-left.]**
 
 Hello everyone!
 
@@ -17,139 +18,29 @@ for the Spotter Full Stack Developer assessment:
 Weather-Aware Commercial Truck Routing.
 
 For commercial trucking fleets,
-adverse weather is not just a nuisance—
-it is the leading cause of dangerous rollover crashes,
+severe weather is not just a nuisance—
+it is the leading cause of dangerous rollover accidents,
 missed delivery deadlines, and freight losses.
 
-Standard GPS navigators focus only on speed
+Standard GPS navigation focuses purely on speed
 or the shortest distance,
-completely unaware of crosswinds,
-blizzards, or heavy downpours.
+completely unaware of incoming blizzards,
+strong crosswinds, or heavy rainfall.
 
 This application solves that problem.
-It provides dispatchers and drivers with real-time,
+It gives dispatchers and commercial drivers real-time,
 weather-aware route evaluations
-that directly incorporate the truck's cargo weight.
+that factor in the truck's exact cargo weight
+to actively prevent rollover hazards.
 
-For the architecture:
-On the backend, I built a modular REST API
-using Django 6 and Django REST Framework in Python 3.13,
-focusing on deterministic, testable risk calculation services.
+Before we calculate a route,
+let's look at the Risk Rules Reference
+right here in our navigation bar...
 
-On the frontend, I used React 19 with TypeScript,
-Tailwind CSS, and Leaflet,
-delivering 60 frames-per-second interactive mapping,
-continuous heatmap interpolation,
-and real-time trip simulation.
+**[CLICK: Click "Risk Rules Reference" in the top-right navbar.]**
 
----
-
-## SCENE 2: LIVE DEMO & CARGO LOAD RULES (1:00 – 2:30)
-
-**[ACTION: Type "Chicago, IL" into Origin, select from autocomplete. Type "Denver, CO" into Destination.]**
-
-Let's demonstrate this with a real-world freight corridor:
-Chicago, Illinois to Denver, Colorado.
-
-Here we provide all the required inputs:
-Origin and destination with instant geocoding autocomplete,
-departure date and time,
-and milestone sampling frequency—10, 25, or 50 miles.
-
-**[ACTION: Drag the Cargo Weight slider to 42,000 lbs. Point to the amber alert badge below.]**
-
-Now, look at the Cargo Weight slider.
-I'll set it to 42,000 pounds—
-a typical loaded semi-trailer.
-
-Notice the safety rule indicator immediately updates:
-Because our cargo exceeds 40,000 pounds,
-any crosswinds between 35 and 44 miles per hour
-will be escalated from High to Severe,
-directly protecting the driver from high-profile rollovers.
-
-Let's click "Buscar y Calcular 3 Rutas Seguras".
-
-**[ACTION: Click the primary button. Wait ~1-2 seconds for routes to render.]**
-
-The engine queries OSRM to generate three physically distinct
-commercial highway corridors across the Midwest:
-Route 1: The primary Interstate 80 corridor.
-Route 2: A northern route via I-90 and I-29.
-Route 3: A southern bypass via I-70.
-
-Notice our Safety Recommendation Banner:
-Our algorithm evaluated all hazards
-and selected Route 1 because it contains
-the fewest Severe and No-Travel miles,
-proving that safety always takes precedence over pure speed.
-
----
-
-## SCENE 3: HEATMAP, TIMELAPSE & RADAR (2:30 – 4:15)
-
-**[ACTION: Scroll to the interactive map. Highlight the cyan route and milestone pins.]**
-
-Now, let's explore the interactive corridor map.
-
-Each circular marker represents a scheduled milestone along the route.
-Their colors are static and show the exact risk
-at the time the truck is scheduled to arrive at that mile.
-
-Below the map, we have our 0 to 48-hour forecast slider
-with smooth 15-minute fine increments.
-
-Watch what happens when I click Play...
-
-**[ACTION: Click Play on the forecast slider.]**
-
-Our animated truck beacon begins traveling along the highway,
-drawing an electric cyan path of traveled miles
-and showing real-time elapsed time and distance.
-
-At the exact same time,
-the corridor heatmap underneath smoothly evolves.
-We interpolate weather values continuously between hours,
-ensuring silky-smooth 60 FPS transitions without page lag.
-
-We can toggle between:
-Truck Composite Risk,
-Wind Speed,
-Precipitation,
-and Snowfall.
-
-**[ACTION: Click the 'Live Radar' button in the top-left map controls.]**
-
-We can also toggle our Live Doppler Radar layer,
-proxied securely through our backend without exposing API keys.
-
-Now, watch what happens when I click any checkpoint marker...
-
-**[ACTION: Click a checkpoint marker on the map.]**
-
-Two key things happen:
-First, the map camera stays 100% frozen and stable—
-no annoying auto-panning or zoom resets.
-
-Second, the truck beacon and forecast slider
-instantly jump to that milestone's exact arrival ETA,
-and a rich popup displays temperature, wind gusts, rain rate,
-and the exact Spotter safety rule triggered.
-
-Below the map, dispatchers also have an itinerary table
-with instant hazard filters:
-Hazards Only, High, Severe, or No Travel.
-
----
-
-## SCENE 4: RISK SERVICE & 4-TIER RECOMMENDATION (4:15 – 5:45)
-
-**[ACTION: Switch to VS Code. Open `routing/services/risk_service.py`.]**
-
-Now let's examine the code architecture.
-
-In `risk_service.py`, all evaluations are pure functions
-strictly adhering to the assessment specification:
+This modal reflects the exact specification
+from Spotter's assessment document:
 
 For Wind:
 Under 25 mph is Low,
@@ -163,62 +54,173 @@ Over 1.0 inch per hour of rain
 or over 3.0 inches per hour of snow
 triggers mandatory No Travel.
 
-Here in lines 112 through 130,
-we implement the truck weight rules:
-Wind above 55 is No Travel for any weight.
-Wind 45 to 54 with load over 30,000 pounds becomes No Travel.
-And wind 35 to 44 with load over 40,000 pounds becomes Severe.
+And here are the Truck Load Rules:
+For trucks over 30,000 pounds,
+severe winds become No Travel;
+and for loads over 40,000 pounds,
+crosswinds between 35 and 44 miles per hour
+are escalated to Severe.
 
-**[ACTION: Switch to `routing/services/recommendation_service.py`, highlight lines 45–65.]**
+Let's close this modal and run a calculation.
 
-Now, in `recommendation_service.py`,
-we implement Spotter's exact 4-tier preference hierarchy:
-1. Fewest Severe miles (including No-Travel conditions)
-2. Fewest High-risk miles
-3. Lowest average trip risk score
-4. Shortest travel duration
-
-We achieve this cleanly using Python's native tuple comparison:
-`(severe_and_worse_miles, high_miles, average_risk_score, duration_seconds)`.
-
-Because Python compares tuples lexicographically from left to right,
-safety mathematically dominates travel duration.
+**[CLICK: Close modal by clicking X.]**
 
 ---
 
-## SCENE 5: TEST SUITE & PRODUCTION DEPLOYMENT (5:45 – 7:15)
+## SCENE 2: INTERACTIVE INPUTS & HEAVY LOAD RULE (1:00 – 2:15)
 
-**[ACTION: Switch to terminal and run pytest.]**
+**[ACTION: Click Origin, type "Chicago, IL", select autocomplete. Click Destination, type "Denver, CO", select autocomplete.]**
 
-Verification and code quality are central to this project.
+Let's test this with a major freight corridor:
+Chicago, Illinois to Denver, Colorado.
 
-In the terminal, let's run pytest:
+Here we provide all required inputs:
+Origin and destination with instant geocoding autocomplete,
+departure date and time,
+and milestone sampling frequency—10, 25, or 50 miles.
 
-```
-pytest proyectito/backend -v
-```
+**[ACTION: Drag Cargo Weight slider to 42,000 lbs. Point to the amber warning banner below it.]**
 
-**[ACTION: Let tests run and show 26 green PASS rows.]**
+Now, watch what happens when I adjust our cargo weight
+to 42,000 pounds—
+a typical loaded 53-foot semi-trailer.
 
-All 26 automated unit and integration tests pass cleanly in 7 seconds.
-We test:
-- Every threshold boundary for wind, rain, and snow,
-- All three load weight escalation rules,
-- Great-circle geodesic distance sampling at 10, 25, and 50 miles,
-- Multi-tier recommendation sorting,
-- And API validation and error handling.
+The interface immediately displays an active load rule indicator:
+Because our cargo exceeds 40,000 pounds,
+our engine will automatically escalate
+crosswinds between 35 and 44 miles per hour
+from High to Severe,
+directly protecting the driver from dangerous rollover conditions.
 
-On the frontend, `oxlint` and TypeScript build
-with zero warnings and zero errors.
+Now, let's click "Buscar y Calcular 3 Rutas Seguras".
 
-For deployment, the app is production-ready with:
-- Gunicorn WSGI and WhiteNoise static asset compression,
-- Docker containerization,
-- And a free 24/7 cloud deployment on Render and Vercel
-  with automated health checks.
+**[CLICK: Click the primary button. Wait ~1-2 seconds for routes to render.]**
+
+---
+
+## SCENE 3: 3 HIGHWAY CORRIDORS & RECOMMENDATION (2:15 – 3:30)
+
+**[VISUAL: Point mouse to the Safety Recommendation banner, then to the 3 route cards.]**
+
+The engine has generated three physically distinct
+commercial driving corridors across the Midwest:
+Route 1: The primary Interstate 80 corridor through Iowa and Nebraska.
+Route 2: A northern route via I-90 and I-29.
+Route 3: A southern bypass via I-70.
+
+Notice our Safety Recommendation Analysis banner at the top.
+
+Spotter's prompt defines a strict
+4-tier preference hierarchy:
+First: Fewest Severe miles (including No-Travel conditions).
+Second: Fewest High-risk miles.
+Third: Lowest average trip risk score.
+Fourth: Shortest travel duration.
+
+Even if an alternate route were slightly faster,
+our engine never compromises safety:
+Route 1 is recommended because it contains
+the fewest hazardous severe miles across the Plains.
+
+Each card displays total miles broken down
+by severity: Low, Moderate, High, and Severe.
+
+---
+
+## SCENE 4: INTERACTIVE MAP, TIMELAPSE & RADAR (3:30 – 5:15)
+
+**[VISUAL: Scroll smoothly to the map. Point out the cyan selected route and alternate route lines.]**
+
+Now let's examine the interactive corridor weather map.
+
+The active route is highlighted in vibrant cyan,
+while alternate routes are rendered with high-contrast casings.
+We can switch active routes at any time
+by clicking directly on an alternate line or card.
+
+In the top-left map controls,
+we can switch between HD Dark, Satellite,
+and Esri Dark Gray basemaps.
+
+Each circular marker along the highway
+represents a scheduled milestone.
+Their colors are static and show the exact risk
+at the time the truck is scheduled to arrive at that mile.
+
+Now, look below the map at our 0 to 48-Hour Forecast Slider
+with smooth 15-minute fine increments.
+
+Let's press Play...
+
+**[CLICK: Click Play on the forecast slider.]**
+
+Our animated truck beacon begins traveling along the highway,
+drawing an electric cyan path of traveled miles
+and displaying elapsed time and remaining distance.
+
+Simultaneously, the corridor heatmap underneath
+evolves smoothly in real time.
+We interpolate weather values continuously between hours,
+delivering silky-smooth 60 FPS transitions
+without page lag or flickering.
+
+We can toggle the heatmap layer between:
+Truck Composite Risk,
+Wind Speed,
+Precipitation,
+and Snowfall.
+
+**[CLICK: Click the 'Live Radar' button in the top-left map controls.]**
+
+We also added a Live Doppler Radar layer,
+streamed securely through our backend proxy
+to provide real-time precipitation radar
+with zero client-side secrets.
+
+Now, let's inspect an individual checkpoint...
+
+---
+
+## SCENE 5: CHECKPOINT TELEMETRY, ITINERARY & CLOSING (5:15 – 6:30)
+
+**[CLICK: Click a Moderate or Severe checkpoint marker along the active route.]**
+
+When I click this checkpoint marker,
+notice two crucial behaviors:
+
+First, the map camera stays 100% frozen and stable—
+there are no disruptive auto-panning shifts
+or involuntary zoom resets.
+
+Second, our truck beacon and slider
+instantly jump to that checkpoint's exact arrival ETA.
+
+The rich popup displays milestone distance,
+scheduled arrival time, temperature,
+wind speed, rain rate,
+and the exact Spotter safety rule applied—
+such as our heavy load rule escalating crosswinds to Severe.
+
+Now let's scroll down to the Checkpoint Itinerary...
+
+**[ACTION: Scroll to the itinerary table. Click the "Hazards Only" filter button.]**
+
+For dispatchers conducting safety audits,
+this itinerary table lists every sampled stop.
+With one click on "Hazards Only",
+the table instantly filters out calm miles,
+highlighting only checkpoints with wind or precipitation alerts.
+
+To summarize:
+We generate 3 physical commercial corridors with multi-frequency sampling.
+We strictly enforce Spotter's risk matrices and cargo weight rollover rules.
+We deliver a silky-smooth 60 FPS interactive map
+with a 15-minute animated truck simulation and live radar.
+And the platform is fully production-hardened with Django 6 REST Framework,
+React 19, TypeScript, and 26 automated tests.
 
 Thank you very much for your time and review.
-I look forward to discussing the architecture further!
+I look forward to your feedback!
 
 ---
-*(End of recording - ~7 minutes)*
+*(End of recording - ~6:30 minutes)*
